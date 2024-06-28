@@ -16,8 +16,8 @@ def test_register():
 def test_login():
     url = f"{BASE_URL}/login"
     data = {
-        "username": "testuser",
-        "password": "testpassword"
+        "username": "Venada",
+        "password": "aaaa"
     }
     response = requests.post(url, json=data)
     return response.json()

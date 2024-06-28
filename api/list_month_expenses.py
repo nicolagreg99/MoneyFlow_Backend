@@ -19,7 +19,7 @@ def spese_mensili():
         
         # Esegue la query per ottenere le spese entro gli ultimi 30 giorni per l'utente specifico
         cursor.execute("""
-            SELECT id, valore, tipo, giorno, inserted_at, user_id
+            SELECT id, valore, tipo, giorno, inserted_at, user_id, fields ->> 'descrizione' AS descrizione
             FROM spese
             WHERE giorno >= %s
               AND user_id = %s
@@ -41,7 +41,8 @@ def spese_mensili():
                 "tipo": spesa[2],
                 "giorno": spesa[3].strftime('%Y-%m-%d'),
                 "inserted_at": spesa[4].strftime('%Y-%m-%d %H:%M:%S'),
-                "user_id": spesa[5]
+                "user_id": spesa[5],
+                "descrizione": spesa[6]  
             }
             spese_json.append(spesa_dict)
         
