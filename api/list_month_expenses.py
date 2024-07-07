@@ -1,11 +1,11 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
-from datetime import datetime, timedelta
+from datetime import datetime
 
 def spese_mensili():
     conn = None
     cursor = None
-
+    
     try:
         conn = connect_to_database()
         cursor = create_cursor(conn)
@@ -14,25 +14,29 @@ def spese_mensili():
         if not user_id:
             return jsonify({"error": "User ID is required"}), 400
         
-        # Calcola la data 30 giorni fa rispetto alla data corrente
-        data_inizio_mese = datetime.now() - timedelta(days=30)
+        # Legge il mese e l'anno dai parametri della richiesta
+        mese = request.args.get('mese', type=int)
+        anno = request.args.get('anno', type=int)
+        if not mese or not anno:
+            return jsonify({"error": "Mese e Anno sono richiesti"}), 400
         
-        # Esegue la query per ottenere le spese entro gli ultimi 30 giorni per l'utente specifico
+        # Calcola la data di inizio e di fine del mese
+        data_inizio = datetime(anno, mese, 1)
+        data_fine = datetime(anno, mese + 1, 1) if mese < 12 else datetime(anno + 1, 1, 1)
+        
+        # Esegue la query per ottenere le spese nel mese specifico
         cursor.execute("""
             SELECT id, valore, tipo, giorno, inserted_at, user_id, fields ->> 'descrizione' AS descrizione
             FROM spese
-            WHERE giorno >= %s
-              AND user_id = %s
+            WHERE giorno >= %s AND giorno < %s AND user_id = %s
             ORDER BY giorno DESC
-        """, (data_inizio_mese, user_id))
+        """, (data_inizio, data_fine, user_id))
         
-        # Recupera il risultato della query
         spese_mensili = cursor.fetchall()
         
         if not spese_mensili:
-            return jsonify({"messaggio": "Nessuna spesa effettuata nell'ultimo mese per l'utente specificato"}), 200
+            return jsonify({"messaggio": "Nessuna spesa effettuata nel mese specificato per l'utente specificato"}), 200
         
-        # Converte il risultato in un formato JSON
         spese_json = []
         for spesa in spese_mensili:
             spesa_dict = {

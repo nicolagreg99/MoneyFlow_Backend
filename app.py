@@ -8,7 +8,7 @@ from api.insert_expense import inserisci_spesa
 from api.delete_expense import cancella_spesa
 from api.total_week_expense import totali_settimanali # totale settimanale
 from api.total_types_week_expense import totali_settimanali_per_tipo # totale settimanale per tipo di spesa
-from api.total_types_month_expense import totali_mensili_per_tipo
+from api.total_types_month_expense import calcola_totali_mensili_per_tipo
 from api.total_month_expense import totali_mensili
 from api.create_user import create_user
 from api.authenticate_user import authenticate_user
@@ -131,15 +131,19 @@ def get_spese_settimanali():
 def get_spese_mensili():
     return spese_mensili()
 
+@app.route('/totale_mensile', methods=['GET'])
+def get_totale_mensile():
+    return totali_mensili()
+
+@app.route('/totali/mensili_per_tipo', methods=['GET'])
+def totali_mensili_per_tipo():
+    return calcola_totali_mensili_per_tipo()
+
 # Endpoint per l'inserimento e l'eliminazione delle spese
 app.add_url_rule('/spese', methods=['POST'], view_func=inserisci_spesa)
 app.add_url_rule('/spese/<int:id_spesa>', methods=['DELETE'], view_func=cancella_spesa)
-
 app.add_url_rule('/totale_settimanale', methods=['GET'], view_func=totali_settimanali)
 app.add_url_rule('/totali/settimanali_per_tipo', methods=['GET'], view_func=totali_settimanali_per_tipo)
-app.add_url_rule('/totale_mensile', methods=['GET'], view_func=totali_mensili)
-app.add_url_rule('/totali/mensili_per_tipo', methods=['GET'], view_func=totali_mensili_per_tipo)
-
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
