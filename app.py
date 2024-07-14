@@ -4,16 +4,21 @@ import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 from database.connection import connect_to_database, create_cursor
-from api.insert_expense import inserisci_spesa
-from api.delete_expense import cancella_spesa
-from api.total_week_expense import totali_settimanali # totale settimanale
-from api.total_types_week_expense import totali_settimanali_per_tipo # totale settimanale per tipo di spesa
-from api.total_types_month_expense import calcola_totali_mensili_per_tipo
-from api.total_month_expense import totali_mensili
-from api.create_user import create_user
-from api.authenticate_user import authenticate_user
-from api.list_week_expenses import spese_settimanali # lista delle spese settimanali
-from api.list_month_expenses import spese_mensili
+from api.spese.insert_expense import inserisci_spesa
+from api.spese.delete_expense import cancella_spesa
+from api.spese.list_week_expenses import spese_settimanali # lista delle spese settimanali
+from api.spese.list_month_expenses import spese_mensili
+from api.spese.total_expenses_per_day import calcola_totali_giornalieri 
+from api.spese.total_types_week_expense import totali_settimanali_per_tipo # totale settimanale per tipo di spesa
+from api.spese.total_types_month_expense import calcola_totali_mensili_per_tipo
+from api.spese.total_month_expense import totali_mensili
+from api.entrate.delete_income import cancella_entrata
+from api.entrate.insert_income import inserisci_entrata
+from api.entrate.list_month_income import entrate_mensili
+from api.entrate.total_month_income import totali_mensili_entrate
+from api.entrate.total_types_month_income import calcola_totali_mensili_per_tipo_entrate
+from api.login.create_user import create_user
+from api.login.authenticate_user import authenticate_user
 from functools import wraps
 
 app = Flask(__name__)
@@ -139,11 +144,30 @@ def get_totale_mensile():
 def totali_mensili_per_tipo():
     return calcola_totali_mensili_per_tipo()
 
+@app.route('/entrate/mensili', methods=['GET'])
+def get_entrate_mensili():
+    return entrate_mensili()
+
+@app.route('/entrate/totale_mensile', methods=['GET'])
+def get_totale_mensile_entrate():
+    return totali_mensili_entrate()
+
+@app.route('/entrate/totali/mensili_per_tipo', methods=['GET'])
+def totali_mensili_per_tipo_entrate():
+    return calcola_totali_mensili_per_tipo_entrate()
+
+@app.route('/totali/giornalieri', methods=['GET'])
+@token_required
+def totali_giornalieri(current_user_id):
+    return calcola_totali_giornalieri()
+
 # Endpoint per l'inserimento e l'eliminazione delle spese
 app.add_url_rule('/spese', methods=['POST'], view_func=inserisci_spesa)
 app.add_url_rule('/spese/<int:id_spesa>', methods=['DELETE'], view_func=cancella_spesa)
-app.add_url_rule('/totale_settimanale', methods=['GET'], view_func=totali_settimanali)
 app.add_url_rule('/totali/settimanali_per_tipo', methods=['GET'], view_func=totali_settimanali_per_tipo)
+app.add_url_rule('/entrate/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
+app.add_url_rule('/entrate', methods=['POST'], view_func=inserisci_entrata)
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
