@@ -5,7 +5,7 @@ from datetime import datetime
 conn = connect_to_database()
 cursor = create_cursor(conn)
 
-def calcola_totali_giornalieri_spese():
+def calcola_totali_giornalieri_entrate():
     try:
         user_id = request.args.get('user_id')
         mese = request.args.get('mese')
@@ -28,7 +28,7 @@ def calcola_totali_giornalieri_spese():
         # Esegui la query SQL per ottenere i totali giornalieri
         query = """
             SELECT giorno, SUM(valore) AS totale_per_giorno
-            FROM spese
+            FROM entrate
             WHERE giorno >= %s AND giorno < %s
               AND user_id = %s
             GROUP BY giorno;
@@ -39,7 +39,7 @@ def calcola_totali_giornalieri_spese():
         totali_giornalieri = cursor.fetchall()
         
         if not totali_giornalieri:
-            return jsonify({"messaggio": "Nessuna spesa effettuata nel mese e anno specificati per l'utente specificato"}), 200
+            return jsonify({"messaggio": "Nessun guadagno ricevuto nel mese e anno specificati per l'utente specificato"}), 200
         
         # Prepara la risposta JSON con i totali giornalieri
         result = [{"giorno": row[0].day, "totale_per_giorno": row[1]} for row in totali_giornalieri]

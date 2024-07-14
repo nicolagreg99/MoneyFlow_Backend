@@ -8,7 +8,8 @@ from api.spese.insert_expense import inserisci_spesa
 from api.spese.delete_expense import cancella_spesa
 from api.spese.list_week_expenses import spese_settimanali # lista delle spese settimanali
 from api.spese.list_month_expenses import spese_mensili
-from api.spese.total_expenses_per_day import calcola_totali_giornalieri 
+from api.spese.total_expenses_per_day import calcola_totali_giornalieri_spese 
+from api.entrate.total_incomings_per_day import calcola_totali_giornalieri_entrate 
 from api.spese.total_types_week_expense import totali_settimanali_per_tipo # totale settimanale per tipo di spesa
 from api.spese.total_types_month_expense import calcola_totali_mensili_per_tipo
 from api.spese.total_month_expense import totali_mensili
@@ -156,10 +157,15 @@ def get_totale_mensile_entrate():
 def totali_mensili_per_tipo_entrate():
     return calcola_totali_mensili_per_tipo_entrate()
 
-@app.route('/totali/giornalieri', methods=['GET'])
+@app.route('/totali/giornalieri/spese', methods=['GET'])
+@token_required
+def totali_giornalieri_spese(current_user_id):
+    return calcola_totali_giornalieri_spese()
+
+@app.route('/totali/giornalieri/entrate', methods=['GET'])
 @token_required
 def totali_giornalieri(current_user_id):
-    return calcola_totali_giornalieri()
+    return calcola_totali_giornalieri_entrate()
 
 # Endpoint per l'inserimento e l'eliminazione delle spese
 app.add_url_rule('/spese', methods=['POST'], view_func=inserisci_spesa)
