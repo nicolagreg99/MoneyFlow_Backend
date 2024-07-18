@@ -1,19 +1,34 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime
-
-conn = connect_to_database()
-cursor = create_cursor(conn)
+import jwt
 
 def calcola_totali_mensili_per_tipo_entrate():
+    conn = None
+    cursor = None
+
     try:
-        user_id = request.args.get('user_id')
+        conn = connect_to_database()
+        cursor = create_cursor(conn)
+
+        token = request.headers.get('x-access-token')
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+
+        try:
+            decoded_token = jwt.decode(token, "your_secret_key", algorithms=["HS256"])
+            user_id = decoded_token.get('user_id')
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        if not user_id:
+            return jsonify({"error": "User ID is missing from token"}), 401
+
         mese = request.args.get('mese')
         anno = request.args.get('anno')
 
-        if not user_id:
-            return jsonify({"error": "User ID is required"}), 400
-        
         if not mese or not anno:
             return jsonify({"error": "Month and Year are required"}), 400
         
@@ -45,7 +60,11 @@ def calcola_totali_mensili_per_tipo_entrate():
         result = [{"tipo": row[0], "totale_per_tipo": row[1]} for row in totali_mensili_per_tipo_entrate]
         
         return jsonify(result), 200
-    
     except Exception as e:
         print("Errore durante il recupero dei totali mensili per tipo di entrata:", str(e))
         return jsonify({"errore": "Impossibile recuperare i totali mensili per tipo di entrata"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()

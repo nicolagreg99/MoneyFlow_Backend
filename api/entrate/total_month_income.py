@@ -1,6 +1,7 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime
+import jwt
 
 def totali_mensili_entrate():
     conn = None
@@ -10,10 +11,21 @@ def totali_mensili_entrate():
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        user_id = request.args.get('user_id')
+        token = request.headers.get('x-access-token')
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+
+        try:
+            decoded_token = jwt.decode(token, "your_secret_key", algorithms=["HS256"])
+            user_id = decoded_token.get('user_id')
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
         if not user_id:
-            return jsonify({"error": "User ID is required"}), 400
-        
+            return jsonify({"error": "User ID is missing from token"}), 401
+
         # Legge il mese e l'anno dai parametri della richiesta
         mese = request.args.get('mese', type=int)
         anno = request.args.get('anno', type=int)

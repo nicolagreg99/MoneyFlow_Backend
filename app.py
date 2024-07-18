@@ -93,14 +93,46 @@ def login():
     else:
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
+invalidated_tokens = set()
+
 @app.route('/logout', methods=['POST'])
 @token_required
 def logout(current_user_id):
+    token = request.headers['x-access-token']
+    invalidated_tokens.add(token)
     try:
         return jsonify({'message': 'Successfully logged out!'}), 200
     except Exception as e:
         logger.error(f"Error during logout: {str(e)}")
         return jsonify({'message': 'Logout failed!'}), 500
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
+
+        if not token:
+            return jsonify({'message': 'Token is missing!'}), 401
+
+        if token in invalidated_tokens:
+            return jsonify({'message': 'Token has been invalidated!'}), 401
+
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+            current_user_id = data['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired!'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Invalid token!'}), 401
+        except Exception as e:
+            logger.error(f"Error decoding token: {e}")
+            return jsonify({'message': 'Failed to authenticate token.'}), 500
+
+        return f(current_user_id, *args, **kwargs)
+    return decorated
+
 
 @app.route('/me', methods=['GET'])
 @token_required
@@ -137,11 +169,11 @@ def get_spese_settimanali():
 def get_spese_mensili():
     return spese_mensili()
 
-@app.route('/totale_mensile', methods=['GET'])
+@app.route('/spese/totale_mensile', methods=['GET'])
 def get_totale_mensile():
     return totali_mensili()
 
-@app.route('/totali/mensili_per_tipo', methods=['GET'])
+@app.route('/spese/totali/mensili_per_tipo', methods=['GET'])
 def totali_mensili_per_tipo():
     return calcola_totali_mensili_per_tipo()
 
