@@ -20,6 +20,7 @@ from api.entrate.total_month_income import totali_mensili_entrate
 from api.entrate.total_types_month_income import calcola_totali_mensili_per_tipo_entrate
 from api.login.create_user import create_user
 from api.login.authenticate_user import authenticate_user
+from api.improvements.suggestions import get_suggestions
 from functools import wraps
 
 app = Flask(__name__)
@@ -206,6 +207,9 @@ app.add_url_rule('/totali/settimanali_per_tipo', methods=['GET'], view_func=tota
 app.add_url_rule('/entrate/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
 app.add_url_rule('/entrate', methods=['POST'], view_func=inserisci_entrata)
 
+@app.route('/suggestions', methods=['GET'])
+def suggestions():
+    return get_suggestions()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
