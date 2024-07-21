@@ -11,6 +11,7 @@ def inserisci_spesa():
         valore = data['valore']
         tipo = data['tipo']
         giorno = data['giorno']
+        descrizione = data.get('descrizione', '')  # Ottieni la descrizione, se presente
         user_id = data.get('user_id')  # Seleziona l'user_id dalla richiesta, se presente
 
         # Registra il corpo della richiesta come parte dei campi della spesa
@@ -19,6 +20,11 @@ def inserisci_spesa():
         # Esegui l'inserimento della spesa nel database, incluso il corpo della richiesta
         cursor.execute("INSERT INTO spese (valore, tipo, giorno, user_id, fields) VALUES (%s, %s, %s, %s, %s)", 
                        (valore, tipo, giorno, user_id, fields))
+        
+        # Inserisci la nuova suggestion nel database
+        cursor.execute("INSERT INTO suggerimenti (descrizione, tipo) VALUES (%s, %s)",
+                       (descrizione, tipo))
+        
         conn.commit()
         
         return jsonify({"message": "Entered successfully!"}), 201
