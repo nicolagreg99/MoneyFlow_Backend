@@ -20,10 +20,16 @@ def inserisci_spesa():
         # Esegui l'inserimento della spesa nel database, incluso il corpo della richiesta
         cursor.execute("INSERT INTO spese (valore, tipo, giorno, user_id, fields) VALUES (%s, %s, %s, %s, %s)", 
                        (valore, tipo, giorno, user_id, fields))
+
+        # Controlla se il suggerimento esiste già nel database
+        cursor.execute("SELECT id FROM suggerimenti WHERE descrizione = %s AND tipo = %s AND tabella = %s",
+                       (descrizione, tipo, 'spesa'))
+        suggestion = cursor.fetchone()
         
-        # Inserisci la nuova suggestion nel database
-        cursor.execute("INSERT INTO suggerimenti (descrizione, tipo) VALUES (%s, %s)",
-                       (descrizione, tipo))
+        # Inserisci la nuova suggestion nel database solo se non esiste già
+        if suggestion is None:
+            cursor.execute("INSERT INTO suggerimenti (descrizione, tipo, tabella, user_id) VALUES (%s, %s, %s, %s)",
+                           (descrizione, tipo, 'spesa', user_id))
         
         conn.commit()
         

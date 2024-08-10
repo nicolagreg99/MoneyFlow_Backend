@@ -1,9 +1,9 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
-from datetime import datetime
+from datetime import datetime, timedelta
 import jwt
 
-def spese_mensili():
+def spese_interval():
     conn = None
     cursor = None
     
@@ -26,28 +26,41 @@ def spese_mensili():
         if not user_id:
             return jsonify({"error": "User ID is missing from token"}), 401
 
-        # Legge il mese e l'anno dai parametri della richiesta
-        mese = request.args.get('mese', type=int)
-        anno = request.args.get('anno', type=int)
-        if not mese or not anno:
-            return jsonify({"error": "Mese e Anno sono richiesti"}), 400
+        from_date_str = request.args.get('from_date')
+        to_date_str = request.args.get('to_date')
+        tipo = request.args.get('tipo')  
+
+        if not from_date_str or not to_date_str:
+            return jsonify({"error": "from_date e to_date sono richiesti"}), 400
         
-        # Calcola la data di inizio e di fine del mese
-        data_inizio = datetime(anno, mese, 1)
-        data_fine = datetime(anno, mese + 1, 1) if mese < 12 else datetime(anno + 1, 1, 1)
+        try:
+            data_inizio = datetime.strptime(from_date_str, '%Y-%m-%d')
+            data_fine = datetime.strptime(to_date_str, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({"error": "Formato delle date non valido. Usa YYYY-MM-DD."}), 400
         
-        # Esegue la query per ottenere le spese nel mese specifico
-        cursor.execute("""
+        if data_fine < data_inizio:
+            return jsonify({"error": "La data di fine deve essere successiva alla data di inizio"}), 400
+        
+        query = """
             SELECT id, valore, tipo, giorno, inserted_at, user_id, fields ->> 'descrizione' AS descrizione
             FROM spese
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
-            ORDER BY giorno DESC
-        """, (data_inizio, data_fine, user_id))
+        """
+        params = [data_inizio, data_fine + timedelta(days=1), user_id]
+
+        if tipo:
+            query += " AND tipo = %s"
+            params.append(tipo)
+
+        query += " ORDER BY giorno DESC"
+
+        cursor.execute(query, tuple(params))
         
         spese_mensili = cursor.fetchall()
         
         if not spese_mensili:
-            return jsonify({"messaggio": "Nessuna spesa effettuata nel mese specificato per l'utente specificato"}), 200
+            return jsonify({"messaggio": "Nessuna spesa effettuata nel periodo specificato per l'utente specificato"}), 200
         
         spese_json = []
         for spesa in spese_mensili:
