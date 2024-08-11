@@ -20,7 +20,7 @@ def send_email(subject, body, to_email):
     msg['Subject'] = subject
 
     # Aggiungi il corpo del messaggio
-    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(body, 'html'))
 
     try:
         # Connessione al server SMTP di Gmail

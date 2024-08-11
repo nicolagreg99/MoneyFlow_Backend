@@ -4,7 +4,6 @@ import bcrypt
 import psycopg2
 import secrets
 import datetime
-from config import SMTP_USER, SMTP_PASSWORD
 from database.connection import connect_to_database, create_cursor
 
 bp = Blueprint('reset_password', __name__)
@@ -56,8 +55,48 @@ def request_reset():
         store_reset_token(username, token)
 
         reset_link = f"http://192.168.1.93:3000/reset_password?token={token}"
-        email_body = f"Click the following link to reset your password: {reset_link}"
-        send_email("Password Reset Request", email_body, user_email)
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; color: #333; background-color: #f7f7f7; padding: 20px;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <tr>
+                    <td style="padding: 20px; text-align: center; background-color: #007bff; color: #ffffff; font-size: 24px; font-weight: bold;">
+                        Reimposta la tua password
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 20px;">
+                        <p>Gentile {username},</p>
+                        <p>Hai richiesto di reimpostare la tua password. Clicca sul pulsante qui sotto per procedere:</p>
+                        <p style="text-align: center;">
+                            <a href="{reset_link}" style="display: inline-block; background-color: #28a745; color: white; padding: 12px 24px; text-align: center; text-decoration: none; font-size: 16px; border-radius: 5px;">
+                                Reimposta Password
+                            </a>
+                        </p>
+                        <p>Se il pulsante non funziona, copia e incolla il seguente link nel tuo browser:</p>
+                        <p style="word-break: break-word;">
+                            <a href="{reset_link}" style="color: #007bff; text-decoration: none;">{reset_link}</a>
+                        </p>
+                        <p>Se non hai richiesto questa operazione, puoi ignorare questa email.</p>
+                        <p>Grazie,<br>Il Team di Supporto</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; text-align: center; background-color: #f1f1f1; color: #555; font-size: 12px;">
+                        © 2024 Money-app. Tutti i diritti riservati.
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+
+        send_email("Richiesta di Reimpostazione della Password", html_body, user_email)
 
         return jsonify({'success': True, 'message': 'Password reset email sent'}), 200
     
@@ -67,7 +106,6 @@ def request_reset():
     finally:
         cursor.close()
         conn.close()
-
 
 @bp.route('/reset_password', methods=['POST'])
 def reset_password():
@@ -110,4 +148,3 @@ def reset_password():
     finally:
         cursor.close()
         conn.close()
-
