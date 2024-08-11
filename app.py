@@ -21,6 +21,7 @@ from api.entrate.total_types_month_income import calcola_totali_mensili_per_tipo
 from api.entrate.total_types_interval_income import total_incomings_by_type_in_range
 from api.login.create_user import create_user
 from api.login.authenticate_user import authenticate_user
+from api.login.reset_password import bp as reset_password_bp
 from api.improvements.suggestions import get_suggestions
 from functools import wraps
 
@@ -108,34 +109,6 @@ def logout(current_user_id):
         logger.error(f"Error during logout: {str(e)}")
         return jsonify({'message': 'Logout failed!'}), 500
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        if 'x-access-token' in request.headers:
-            token = request.headers['x-access-token']
-
-        if not token:
-            return jsonify({'message': 'Token is missing!'}), 401
-
-        if token in invalidated_tokens:
-            return jsonify({'message': 'Token has been invalidated!'}), 401
-
-        try:
-            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user_id = data['user_id']
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired!'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Invalid token!'}), 401
-        except Exception as e:
-            logger.error(f"Error decoding token: {e}")
-            return jsonify({'message': 'Failed to authenticate token.'}), 500
-
-        return f(current_user_id, *args, **kwargs)
-    return decorated
-
-
 @app.route('/me', methods=['GET'])
 @token_required
 def get_user_profile(current_user_id):
@@ -163,29 +136,19 @@ def get_user_profile(current_user_id):
         cursor.close()
         conn.close()
 
+# Registrazione del blueprint per il reset della password
+app.register_blueprint(reset_password_bp)
 
 # Endpoints per le entrate
-
-@app.route('/entrate/mensili', methods=['GET'])
-def get_entrate_mensili():
-    return entrate_mensili()
 
 @app.route('/entrate/lista_entrate', methods=['GET'])
 def get_incomings_interval():
     return incomings_interval()
 
-@app.route('/entrate/totale_mensile', methods=['GET'])
-def get_totale_mensile_entrate():
-    return totali_mensili_entrate()
-
 @app.route('/entrate/totale', methods=['GET'])
 @token_required
 def get_incomings_for_period(current_user_id):
     return incomings_for_period()
-
-@app.route('/entrate/totali/mensili_per_tipo', methods=['GET'])
-def totali_mensili_per_tipo_entrate():
-    return calcola_totali_mensili_per_tipo_entrate()
 
 @app.route('/entrate/totale_per_tipo', methods=['GET'])
 @token_required
@@ -199,7 +162,6 @@ def totali_giornalieri(current_user_id):
 
 app.add_url_rule('/entrate/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
 app.add_url_rule('/entrate', methods=['POST'], view_func=inserisci_entrata)
-
 
 # Endpoints per le spese
 
@@ -225,14 +187,11 @@ def get_total_expenses_by_type_in_range(current_user_id):
 def get_spese_interval():
     return spese_interval()
 
-
-#Endpoints per i suggerimenti
+# Endpoints per i suggerimenti
 
 @app.route('/suggestions', methods=['GET'])
 def suggestions():
     return get_suggestions()
 
-
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
-
