@@ -11,6 +11,7 @@ def total_expenses_by_type_in_range():
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
+        # Recupero del token
         token = request.headers.get('x-access-token')
         if not token:
             return jsonify({"error": "Token is missing"}), 401
@@ -26,6 +27,7 @@ def total_expenses_by_type_in_range():
         if not user_id:
             return jsonify({"error": "User ID is missing from token"}), 401
 
+        # Recupero delle date
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
 
@@ -38,26 +40,39 @@ def total_expenses_by_type_in_range():
         except ValueError:
             return jsonify({"error": "Invalid date format, should be YYYY-MM-DD"}), 400
 
+        # Recupero e gestione dei filtri per "tipo"
+        tipi = request.args.getlist('tipo')  # Ottiene tutti i valori "tipo" dalla query string
+
+        # Costruzione della query SQL dinamica
         query = """
             SELECT tipo, SUM(valore) AS totale_per_tipo
             FROM spese
-            WHERE giorno >= %s AND giorno <= %s
+            WHERE giorno BETWEEN %s AND %s
               AND user_id = %s
-            GROUP BY tipo;
         """
-        cursor.execute(query, (from_date, to_date, user_id))
+
+        params = [from_date, to_date, user_id]
+
+        if tipi:
+            placeholders = ', '.join(['%s'] * len(tipi))
+            query += f" AND tipo IN ({placeholders})"
+            params.extend(tipi)
+
+        query += " GROUP BY tipo;"
+
+        cursor.execute(query, tuple(params))
         
         totali_per_tipo_nell_intervallo = cursor.fetchall()
         
         if not totali_per_tipo_nell_intervallo:
-            return jsonify({"messaggio": "Nessuna spesa effettuata nell'intervallo specificato per l'utente specificato"}), 200
+            return jsonify({"messaggio": "Nessuna spesa trovata nell'intervallo specificato"}), 200
         
         result = [{"tipo": row[0], "totale_per_tipo": row[1]} for row in totali_per_tipo_nell_intervallo]
         
         return jsonify(result), 200
     except Exception as e:
-        print("Errore durante il recupero dei totali per tipo di spesa nell'intervallo:", str(e))
-        return jsonify({"errore": "Impossibile recuperare i totali per tipo di spesa nell'intervallo"}), 500
+        print("Errore:", str(e))
+        return jsonify({"errore": "Errore nel recupero delle spese"}), 500
     finally:
         if cursor:
             cursor.close()
