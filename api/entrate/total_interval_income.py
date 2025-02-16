@@ -11,6 +11,7 @@ def incomings_for_period():
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
+        # 🔐 Recupera e decodifica il token
         token = request.headers.get('x-access-token')
         if not token:
             return jsonify({"error": "Token is missing"}), 401
@@ -26,10 +27,11 @@ def incomings_for_period():
         if not user_id:
             return jsonify({"error": "User ID is missing from token"}), 401
 
+        # 📆 Recupera le date
         start_date_str = request.args.get('from_date')
         end_date_str = request.args.get('to_date')
-        income_type = request.args.get('tipo')
-        
+        income_types = request.args.getlist('tipo')  # Accetta più tipi
+
         if not start_date_str or not end_date_str:
             return jsonify({"error": "from_date and to_date are required"}), 400
 
@@ -42,28 +44,29 @@ def incomings_for_period():
         if end_date < start_date:
             return jsonify({"error": "End date must be after start date"}), 400
         
+        # 🛠️ Costruzione query SQL dinamica
         query = """
             SELECT SUM(valore)
             FROM entrate
-            WHERE giorno >= %s AND giorno <= %s AND user_id = %s
+            WHERE giorno BETWEEN %s AND %s AND user_id = %s
         """
         params = [start_date, end_date, user_id]
 
-        if income_type:
-            query += " AND tipo = %s"
-            params.append(income_type)
+        if income_types:
+            placeholders = ', '.join(['%s'] * len(income_types))
+            query += f" AND tipo IN ({placeholders})"
+            params.extend(income_types)
         
+        # 🔍 Esegui la query
         cursor.execute(query, tuple(params))
-        
         total = cursor.fetchone()[0]
-        
-        if total is None:
-            total = 0
-        
-        return jsonify({"total": total}), 200
+
+        return jsonify({"total": total if total is not None else 0}), 200
+
     except Exception as e:
         print("Error retrieving totals for the period:", str(e))
         return jsonify({"error": "Unable to retrieve totals for the period"}), 500
+
     finally:
         if cursor:
             cursor.close()
