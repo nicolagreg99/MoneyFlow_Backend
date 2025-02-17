@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 import jwt
 from datetime import datetime, timedelta
 
-def totali_mensili_entrate():
+def totali_mensili_spese():
     try:
         token = request.headers.get('x-access-token')
         if not token:
@@ -25,12 +25,12 @@ def totali_mensili_entrate():
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # Query per ottenere la somma delle entrate negli ultimi 12 mesi
+        # Query per ottenere la somma delle spese negli ultimi 12 mesi
         query = """
             SELECT CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
                    CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
                    SUM(valore) AS totale_per_mese
-            FROM entrate
+            FROM spese
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
             GROUP BY anno, mese
             ORDER BY anno, mese;
@@ -59,5 +59,5 @@ def totali_mensili_entrate():
         return jsonify(result), 200
 
     except Exception as e:
-        print("Errore durante il recupero dei totali mensili:", str(e))
-        return jsonify({"errore": "Impossibile recuperare i totali mensili"}), 500
+        print("Errore durante il recupero dei totali mensili delle spese:", str(e))
+        return jsonify({"errore": "Impossibile recuperare i totali mensili delle spese"}), 500
