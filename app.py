@@ -22,7 +22,8 @@ from api.login.create_user import create_user
 from api.login.authenticate_user import authenticate_user
 from api.login.reset_password import bp as reset_password_bp
 from api.improvements.suggestions import get_suggestions
-from api.bilanci.total_month_balances import totali_mensili_bilanci  # Importa la nuova API
+from api.bilanci.total_month_balances import totali_mensili_bilanci
+from api.bilanci.total_balances import bilancio_totale
 from functools import wraps
 
 app = Flask(__name__)
@@ -198,6 +199,10 @@ def totali_spese_mensili(current_user_id):
     return totali_mensili_spese()
 
 # Endpoints per i bilanci
+
+@app.route('/bilancio/totale', methods=['GET'])
+def get_bilancio_totale():
+    return bilancio_totale()
 
 @app.route('/totali/mensili/bilanci', methods=['GET'])
 @token_required
