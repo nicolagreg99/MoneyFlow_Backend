@@ -143,8 +143,9 @@ app.register_blueprint(reset_password_bp)
 # Endpoints per le entrate
 
 @app.route('/entrate/lista_entrate', methods=['GET'])
-def get_incomings_interval():
-    return incomings_interval()
+@token_required
+def get_incomings_interval(current_user_id):
+    return incomings_interval(current_user_id)
 
 @app.route('/entrate/totale', methods=['GET'])
 @token_required

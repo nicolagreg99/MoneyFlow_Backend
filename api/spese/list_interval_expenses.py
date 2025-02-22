@@ -18,7 +18,7 @@ def spese_interval(current_user_id):
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
         tipo = request.args.get('tipo')
-
+ 
         if not from_date_str or not to_date_str:
             return jsonify({"error": "from_date e to_date sono richiesti"}), 400
         
