@@ -3,32 +3,21 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime, timedelta
 import jwt
 
-def spese_interval():
+def spese_interval(current_user_id):
     conn = None
     cursor = None
-    
+
     try:
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        token = request.headers.get('x-access-token')
-        if not token:
-            return jsonify({"error": "Token is missing"}), 401
+        # token è già stato validato dal decoratore, quindi non serve più controllare la presenza del token
+        user_id = current_user_id  # Usa l'argomento current_user_id invece di estrarlo dal token
 
-        try:
-            decoded_token = jwt.decode(token, "your_secret_key", algorithms=["HS256"])
-            user_id = decoded_token.get('user_id')
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token has expired"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token"}), 401
-
-        if not user_id:
-            return jsonify({"error": "User ID is missing from token"}), 401
-
+        # Il resto della logica non cambia...
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
-        tipo = request.args.get('tipo')  
+        tipo = request.args.get('tipo')
 
         if not from_date_str or not to_date_str:
             return jsonify({"error": "from_date e to_date sono richiesti"}), 400

@@ -190,8 +190,9 @@ def get_total_expenses_by_type_in_range(current_user_id):
     return total_expenses_by_type_in_range()
 
 @app.route('/spese/lista_spese', methods=['GET'])
-def get_spese_interval():
-    return spese_interval()
+@token_required
+def get_spese_interval(current_user_id):
+    return spese_interval(current_user_id)
 
 @app.route('/totali/mensili/spese', methods=['GET'])
 @token_required
