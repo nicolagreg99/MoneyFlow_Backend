@@ -1,7 +1,6 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime, timedelta
-import jwt
 
 def spese_interval(current_user_id):
     conn = None
@@ -11,13 +10,11 @@ def spese_interval(current_user_id):
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # token è già stato validato dal decoratore, quindi non serve più controllare la presenza del token
-        user_id = current_user_id  # Usa l'argomento current_user_id invece di estrarlo dal token
+        user_id = current_user_id  
 
-        # Il resto della logica non cambia...
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
-        tipo = request.args.get('tipo')
+        tipi = request.args.getlist('tipo') 
  
         if not from_date_str or not to_date_str:
             return jsonify({"error": "from_date e to_date sono richiesti"}), 400
@@ -38,22 +35,21 @@ def spese_interval(current_user_id):
         """
         params = [data_inizio, data_fine + timedelta(days=1), user_id]
 
-        if tipo:
-            query += " AND tipo = %s"
-            params.append(tipo)
+        if tipi:
+            placeholders = ', '.join(['%s'] * len(tipi))
+            query += f" AND tipo IN ({placeholders})"
+            params.extend(tipi)
 
         query += " ORDER BY giorno DESC"
 
         cursor.execute(query, tuple(params))
-        
         spese_mensili = cursor.fetchall()
         
         if not spese_mensili:
             return jsonify({"messaggio": "Nessuna spesa effettuata nel periodo specificato per l'utente specificato"}), 200
         
-        spese_json = []
-        for spesa in spese_mensili:
-            spesa_dict = {
+        spese_json = [
+            {
                 "id": spesa[0],
                 "valore": spesa[1],
                 "tipo": spesa[2],
@@ -62,12 +58,15 @@ def spese_interval(current_user_id):
                 "user_id": spesa[5],
                 "descrizione": spesa[6]
             }
-            spese_json.append(spesa_dict)
+            for spesa in spese_mensili
+        ]
         
         return jsonify(spese_json), 200
+
     except Exception as e:
         print("Errore durante il recupero delle spese mensili:", str(e))
         return jsonify({"errore": "Impossibile recuperare le spese mensili"}), 500
+
     finally:
         if cursor:
             cursor.close()
