@@ -23,6 +23,7 @@ from api.entrate.list_categories_incomes import list_categories_incomes
 from api.users.create_user import create_user
 from api.users.edit_user import edit_user
 from api.users.authenticate_user import authenticate_user
+from api.users.get_user_profile import get_user_profile
 from api.users.reset_password import bp as reset_password_bp
 from api.improvements.suggestions import get_suggestions
 from api.bilanci.total_month_balances import totali_mensili_bilanci
@@ -32,14 +33,10 @@ from functools import wraps
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
 
-# Configurazione del logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
-
-conn = connect_to_database()
-cursor = create_cursor(conn)
 
 def token_required(f):
     @wraps(f)
@@ -65,7 +62,7 @@ def token_required(f):
         return f(current_user_id, *args, **kwargs)
     return decorated
 
-@app.route('/register', methods=['POST'])
+@app.route('/api/v1/register', methods=['POST'])
 def register():
     data = request.json
     username = data.get('username')
@@ -90,7 +87,7 @@ def register():
     return jsonify(response), status_code
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/api/v1/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
@@ -108,7 +105,7 @@ def login():
 
 invalidated_tokens = set()
 
-@app.route('/logout', methods=['POST'])
+@app.route('/api/v1/logout', methods=['POST'])
 @token_required
 def logout(current_user_id):
     token = request.headers['x-access-token']
@@ -119,128 +116,112 @@ def logout(current_user_id):
         logger.error(f"Error during logout: {str(e)}")
         return jsonify({'message': 'Logout failed!'}), 500
 
-@app.route('/me', methods=['GET'])
+@app.route('/api/v1/me', methods=['GET'])
 @token_required
-def get_user_profile(current_user_id):
-    conn = connect_to_database()
-    cursor = create_cursor(conn)
-
-    try:
-        logger.info(f"Fetching user profile for user_id: {current_user_id}")
-        cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (current_user_id,))
-        user = cursor.fetchone()
-        if user:
-            user_info = {
-                "id": user[0],
-                "username": user[1],
-                "email": user[2]
-            }
-            logger.info(f"User profile data: {user_info}")
-            return jsonify(user_info), 200
-        else:
-            return jsonify({"message": "User not found"}), 404
-    except Exception as e:
-        logger.error(f"Error retrieving user profile: {e}")
-        return jsonify({"message": "Error retrieving user profile"}), 500
-    finally:
-        cursor.close()
-        conn.close()
+def me(current_user_id):
+    return get_user_profile(current_user_id)
 
 # Registrazione del blueprint per il reset della password
 app.register_blueprint(reset_password_bp)
 
-# Edit user
-
-@app.route("/edit_user", methods=["PUT"])
+@app.route("/api/v1/edit_user", methods=["PUT"])
 @token_required
 def edit_user_api(user_id):
     return edit_user(user_id)
 
 # Endpoints per le entrate
 
-@app.route('/entrate/lista_entrate', methods=['GET'])
+@app.route('/api/v1/entrate/lista_entrate', methods=['GET'])
 @token_required
 def get_incomings_interval(current_user_id):
     return incomings_interval(current_user_id)
 
-@app.route('/entrate/totale', methods=['GET'])
+@app.route('/api/v1/entrate/totale', methods=['GET'])
 @token_required
 def get_incomings_for_period(current_user_id):
     return incomings_for_period()
 
-@app.route('/entrate/totale_per_tipo', methods=['GET'])
+@app.route('/api/v1/entrate/totale_per_tipo', methods=['GET'])
 @token_required
 def get_total_incomings_by_type_in_range(current_user_id):
     return total_incomings_by_type_in_range()
 
-@app.route('/totali/giornalieri/entrate', methods=['GET'])
+@app.route('/api/v1/totali/giornalieri/entrate', methods=['GET'])
 @token_required
 def totali_giornalieri(current_user_id):
     return calcola_totali_giornalieri_entrate()
 
-@app.route('/totali/mensili/entrate', methods=['GET'])
+@app.route('/api/v1/totali/mensili/entrate', methods=['GET'])
 @token_required
 def totali_entrate_mensili(current_user_id):
     return totali_mensili_entrate()
 
-app.add_url_rule('/entrate/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
-app.add_url_rule('/entrate', methods=['POST'], view_func=inserisci_entrata)
+app.add_url_rule('/api/v1/entrate/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
 
-@app.route('/entrate/list_categories', methods=['GET'])
+@app.route('/api/v1/entrate', methods=['POST'])
+@token_required
+def inserisci_entrata_api(user_id):
+    return inserisci_entrata(user_id)
+
+@app.route('/api/v1/entrate/list_categories', methods=['GET'])
 @token_required
 def get_incomes_categories(user_id):
-    """API per ottenere le categorie di entrate di un utente autenticato"""
+    """API to get incomes categories"""
     return list_categories_incomes(user_id)
 
 # Endpoints per le spese
 
-app.add_url_rule('/spese', methods=['POST'], view_func=inserisci_spesa)
-app.add_url_rule('/spese/<int:id_spesa>', methods=['DELETE'], view_func=cancella_spesa)
+@app.route('/api/v1/spese', methods=['POST'])
+@token_required
+def inserisci_spesa_api(user_id):
+    return inserisci_spesa(user_id)
 
-@app.route('/totali/giornalieri/spese', methods=['GET'])
+app.add_url_rule('/api/v1/spese/<int:id_spesa>', methods=['DELETE'], view_func=cancella_spesa)
+
+@app.route('/api/v1/totali/giornalieri/spese', methods=['GET'])
 @token_required
 def totali_giornalieri_spese(current_user_id):
     return calcola_totali_giornalieri_spese() 
 
-@app.route('/spese/totale', methods=['GET'])
+@app.route('/api/v1/spese/totale', methods=['GET'])
 @token_required
 def get_expenses_for_period(current_user_id):
     return total_expenses_for_period()
 
-@app.route('/spese/totale_per_tipo', methods=['GET'])
+@app.route('/api/v1/spese/totale_per_tipo', methods=['GET'])
 @token_required
 def get_total_expenses_by_type_in_range(current_user_id):
     return total_expenses_by_type_in_range()
 
-@app.route('/spese/lista_spese', methods=['GET'])
+@app.route('/api/v1/spese/lista_spese', methods=['GET'])
 @token_required
 def get_spese_interval(current_user_id):
     return spese_interval(current_user_id)
 
-@app.route('/totali/mensili/spese', methods=['GET'])
+@app.route('/api/v1/totali/mensili/spese', methods=['GET'])
 @token_required
 def totali_spese_mensili(current_user_id):
     return totali_mensili_spese()
 
-@app.route("/spese/list_categories", methods=["GET"])
+@app.route("/api/v1/spese/list_categories", methods=["GET"])
 @token_required
 def list_categories_expenses_api(user_id):
     return list_categories_expenses(user_id)
 
 # Endpoints per i bilanci
 
-@app.route('/bilancio/totale', methods=['GET'])
+@app.route('/api/v1/bilancio/totale', methods=['GET'])
 def get_bilancio_totale():
     return bilancio_totale()
 
-@app.route('/totali/mensili/bilanci', methods=['GET'])
+@app.route('/api/v1/totali/mensili/bilanci', methods=['GET'])
 @token_required
 def totali_bilanci_mensili(current_user_id):
     return totali_mensili_bilanci()
 
 # Endpoints per i suggerimenti
 
-@app.route('/suggestions', methods=['GET'])
+@app.route('/api/v1/suggestions', methods=['GET'])
 def suggestions():
     return get_suggestions()
 
