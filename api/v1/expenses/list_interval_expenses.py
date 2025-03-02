@@ -2,15 +2,13 @@ from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime, timedelta
 
-def spese_interval(current_user_id):
+def expenses_list(user_id):
     conn = None
     cursor = None
 
     try:
         conn = connect_to_database()
         cursor = create_cursor(conn)
-
-        user_id = current_user_id  
 
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')

@@ -6,22 +6,22 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # Import API modules
-from api.v1.expenses.insert_expense import inserisci_spesa
-from api.v1.expenses.delete_expense import cancella_spesa
-from api.v1.expenses.total_expenses_per_day import calcola_totali_giornalieri_spese
-from api.v1.expenses.total_interval_expenses import total_expenses_for_period
-from api.v1.expenses.total_types_interval_expense import total_expenses_by_type_in_range
-from api.v1.expenses.list_interval_expenses import spese_interval
-from api.v1.expenses.total_month_expenses import totali_mensili_spese
+from api.v1.expenses.insert_expense import insert_expense
+from api.v1.expenses.delete_expense import delete_expense
+from api.v1.expenses.total_expenses_per_day import total_expenses_by_day
+from api.v1.expenses.total_interval_expenses import total_expenses
+from api.v1.expenses.total_types_interval_expense import total_expenses_by_category
+from api.v1.expenses.list_interval_expenses import expenses_list
+from api.v1.expenses.total_month_expenses import total_expenses_by_month
 from api.v1.expenses.list_categories_expenses import list_categories_expenses
 
-from api.v1.incomes.insert_income import inserisci_entrata
-from api.v1.incomes.delete_income import cancella_entrata
-from api.v1.incomes.list_interval_income import incomings_interval
-from api.v1.incomes.total_incomings_per_day import calcola_totali_giornalieri_entrate
-from api.v1.incomes.total_interval_income import incomings_for_period
-from api.v1.incomes.total_types_interval_income import total_incomings_by_type_in_range
-from api.v1.incomes.total_month_income import totali_mensili_entrate
+from api.v1.incomes.insert_income import insert_income
+from api.v1.incomes.delete_income import delete_income
+from api.v1.incomes.list_interval_income import incomes_list
+from api.v1.incomes.total_incomings_per_day import total_incomes_by_day
+from api.v1.incomes.total_interval_income import total_incomes
+from api.v1.incomes.total_types_interval_income import total_incomes_by_category
+from api.v1.incomes.total_month_income import total_incomes_by_month
 from api.v1.incomes.list_categories_incomes import list_categories_incomes
 
 from api.v1.users.create_user import create_user
@@ -30,9 +30,8 @@ from api.v1.users.authenticate_user import authenticate_user
 from api.v1.users.get_user_profile import get_user_profile
 from api.v1.users.reset_password import bp as reset_password_bp
 
-from api.v1.balances.total_month_balances import totali_mensili_bilanci
-from api.v1.balances.total_balances import bilancio_totale
-
+from api.v1.balances.total_month_balances import total_balances_by_month
+from api.v1.balances.total_balances import total_balance
 
 
 app = Flask(__name__)
@@ -126,10 +125,11 @@ def logout(current_user_id):
         logger.error(f"Error during logout: {str(e)}")
         return jsonify({'message': 'Logout failed!'}), 500
 
+# User profile
 @app.route('/api/v1/me', methods=['GET'])
 @token_required
-def me(current_user_id):
-    return get_user_profile(current_user_id)
+def me(user_id):
+    return get_user_profile(user_id)
 
 # Reset password
 app.register_blueprint(reset_password_bp)
@@ -145,46 +145,46 @@ def edit_user_api(user_id):
 # Income list
 @app.route('/api/v1/incomes/list', methods=['GET'])
 @token_required
-def get_incomings_interval(current_user_id):
-    return incomings_interval(current_user_id)
+def incomes_list_api(user_id):
+    return incomes_list(user_id)
 
 # Total incomes 
 @app.route('/api/v1/incomes/total', methods=['GET'])
 @token_required
-def get_incomings_for_period(current_user_id):
-    return incomings_for_period()
+def total_incomes_api(user_id):
+    return total_incomes()
 
 # Income total group by category
 @app.route('/api/v1/incomes/total_by_category', methods=['GET'])
 @token_required
-def get_total_incomings_by_type_in_range(current_user_id):
-    return total_incomings_by_type_in_range()
+def total_incomes_by_category_api(user_id):
+    return total_incomes_by_category()
 
 # Income total group by day
 @app.route('/api/v1/incomes/total_by_day', methods=['GET'])
 @token_required
-def totali_giornalieri(current_user_id):
-    return calcola_totali_giornalieri_entrate()
+def total_incomes_by_day_api(user_id):
+    return total_incomes_by_day()
 
 # Income total group by month
 @app.route('/api/v1/incomes/total_by_month', methods=['GET'])
 @token_required
-def totali_entrate_mensili(current_user_id):
-    return totali_mensili_entrate()
+def total_incomes_by_month_api(user_id):
+    return total_incomes_by_month()
 
 # Delete income
-app.add_url_rule('/api/v1/incomes/<int:id_guadagno>', methods=['DELETE'], view_func=cancella_entrata)
+app.add_url_rule('/api/v1/incomes/<int:id_guadagno>', methods=['DELETE'], view_func=delete_income)
 
 # Insert income
 @app.route('/api/v1/incomes/insert', methods=['POST'])
 @token_required
-def inserisci_entrata_api(user_id):
-    return inserisci_entrata(user_id)
+def insert_income_api(user_id):
+    return insert_income(user_id)
 
 # Show list income category
 @app.route('/api/v1/incomes/list_categories', methods=['GET'])
 @token_required
-def get_incomes_categories(user_id):
+def list_categories_incomes_api(user_id):
     """API to get incomes categories"""
     return list_categories_incomes(user_id)
 
@@ -193,41 +193,41 @@ def get_incomes_categories(user_id):
 # Insert expense
 @app.route('/api/v1/expenses/insert', methods=['POST'])
 @token_required
-def inserisci_spesa_api(user_id):
-    return inserisci_spesa(user_id)
+def insert_expense_api(user_id):
+    return insert_expense(user_id)
 
 # Delete expense
-app.add_url_rule('/api/v1/expenses/<int:id_spesa>', methods=['DELETE'], view_func=cancella_spesa)
+app.add_url_rule('/api/v1/expenses/<int:id_spesa>', methods=['DELETE'], view_func=delete_expense)
 
 # Expense total group by day
 @app.route('/api/v1/expenses/total_by_day', methods=['GET'])
 @token_required
-def totali_giornalieri_spese(current_user_id):
-    return calcola_totali_giornalieri_spese() 
+def total_expenses_by_day_api(user_id):
+    return total_expenses_by_day() 
 
 # Total expenses
 @app.route('/api/v1/expenses/total', methods=['GET'])
 @token_required
-def get_expenses_for_period(current_user_id):
-    return total_expenses_for_period()
+def total_expenses_api(user_id):
+    return total_expenses()
 
 # Expense total group by category
 @app.route('/api/v1/expenses/total_by_category', methods=['GET'])
 @token_required
-def get_total_expenses_by_type_in_range(current_user_id):
-    return total_expenses_by_type_in_range()
+def total_expenses_by_category_api(user_id):
+    return total_expenses_by_category()
 
 # Expense list
 @app.route('/api/v1/expenses/list', methods=['GET'])
 @token_required
-def get_spese_interval(current_user_id):
-    return spese_interval(current_user_id)
+def expenses_list_api(user_id):
+    return expenses_list(user_id)
 
 # Expense total group by month
 @app.route('/api/v1/expenses/total_by_month', methods=['GET'])
 @token_required
-def totali_spese_mensili(current_user_id):
-    return totali_mensili_spese()
+def total_expenses_by_month_api(user_id):
+    return total_expenses_by_month()
 
 # Show list expense category
 @app.route("/api/v1/expenses/list_categories", methods=["GET"])
@@ -239,14 +239,14 @@ def list_categories_expenses_api(user_id):
 
 # Total balances
 @app.route('/api/v1/balances/total', methods=['GET'])
-def get_bilancio_totale():
-    return bilancio_totale()
+def total_balance_api():
+    return total_balance()
 
 # Total balances group by month
 @app.route('/api/v1/balances/total_by_month', methods=['GET'])
 @token_required
-def totali_bilanci_mensili(current_user_id):
-    return totali_mensili_bilanci()
+def total_balances_by_month_api(current_user_id):
+    return total_balances_by_month()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 import jwt
 from datetime import datetime, timedelta
 
-def totali_mensili_entrate():
+def total_incomes_by_month():
     try:
         token = request.headers.get('x-access-token')
         if not token:

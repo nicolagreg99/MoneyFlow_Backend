@@ -4,7 +4,7 @@ from database.connection import connect_to_database, create_cursor
 conn = connect_to_database()
 cursor = create_cursor(conn)
 
-def cancella_entrata(id_guadagno):
+def delete_income(id_guadagno):
     try:
         # Esegui la query per eliminare la riga corrispondente all'id_guadagno specificato
         cursor.execute("DELETE FROM entrate WHERE id = %s", (id_guadagno,))

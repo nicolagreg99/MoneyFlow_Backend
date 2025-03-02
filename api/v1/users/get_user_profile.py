@@ -4,14 +4,14 @@ from database.connection import connect_to_database, create_cursor
 
 logger = logging.getLogger(__name__)
 
-def get_user_profile(current_user_id):
+def get_user_profile(user_id):
     """Restituisce il profilo dell'utente autenticato."""
     conn = connect_to_database()
     cursor = create_cursor(conn)
 
     try:
-        logger.info(f"Fetching user profile for user_id: {current_user_id}")
-        cursor.execute("SELECT id, username, email, first_name, last_name FROM users WHERE id = %s", (current_user_id,))
+        logger.info(f"Fetching user profile for user_id: {user_id}")
+        cursor.execute("SELECT id, username, email, first_name, last_name FROM users WHERE id = %s", (user_id,))
         user = cursor.fetchone()
 
         if user:

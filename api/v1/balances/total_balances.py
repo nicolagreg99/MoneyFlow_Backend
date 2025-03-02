@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 import jwt
 from datetime import datetime, timedelta
 
-def bilancio_totale():
+def total_balance():
     try:
         # Verifica la presenza del token
         token = request.headers.get('x-access-token')

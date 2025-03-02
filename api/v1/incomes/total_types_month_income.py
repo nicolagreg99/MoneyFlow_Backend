@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
 
-def calcola_totali_mensili_per_tipo_entrate():
+def total_incomes_by_month():
     conn = None
     cursor = None
 

@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
 
-def incomings_for_period():
+def total_incomes():
     conn = None
     cursor = None
     
@@ -11,7 +11,6 @@ def incomings_for_period():
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # 🔐 Recupera e decodifica il token
         token = request.headers.get('x-access-token')
         if not token:
             return jsonify({"error": "Token is missing"}), 401
@@ -27,10 +26,9 @@ def incomings_for_period():
         if not user_id:
             return jsonify({"error": "User ID is missing from token"}), 401
 
-        # 📆 Recupera le date
         start_date_str = request.args.get('from_date')
         end_date_str = request.args.get('to_date')
-        income_types = request.args.getlist('tipo')  # Accetta più tipi
+        income_types = request.args.getlist('tipo')  
 
         if not start_date_str or not end_date_str:
             return jsonify({"error": "from_date and to_date are required"}), 400
@@ -44,7 +42,6 @@ def incomings_for_period():
         if end_date < start_date:
             return jsonify({"error": "End date must be after start date"}), 400
         
-        # 🛠️ Costruzione query SQL dinamica
         query = """
             SELECT SUM(valore)
             FROM entrate
@@ -57,7 +54,6 @@ def incomings_for_period():
             query += f" AND tipo IN ({placeholders})"
             params.extend(income_types)
         
-        # 🔍 Esegui la query
         cursor.execute(query, tuple(params))
         total = cursor.fetchone()[0]
 

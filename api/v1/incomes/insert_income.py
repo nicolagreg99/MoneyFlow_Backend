@@ -2,7 +2,7 @@ import json
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 
-def inserisci_entrata(user_id):
+def insert_income(user_id):
     """Inserisce una nuova entrata per l'utente autenticato."""
     conn = connect_to_database()
     cursor = create_cursor(conn)

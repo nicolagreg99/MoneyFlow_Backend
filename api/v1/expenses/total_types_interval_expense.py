@@ -3,7 +3,7 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
 
-def total_expenses_by_type_in_range():
+def total_expenses_by_category():
     conn = None
     cursor = None
 

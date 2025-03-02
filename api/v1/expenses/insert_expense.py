@@ -2,7 +2,7 @@ import json
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 
-def inserisci_spesa(user_id):  
+def insert_expense(user_id):  
     conn = connect_to_database()
     cursor = create_cursor(conn)
 

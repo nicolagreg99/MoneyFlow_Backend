@@ -6,7 +6,7 @@ import jwt
 conn = connect_to_database()
 cursor = create_cursor(conn)
 
-def calcola_totali_giornalieri_entrate():
+def total_incomes_by_day():
     try:
         token = request.headers.get('x-access-token')
         if not token:
