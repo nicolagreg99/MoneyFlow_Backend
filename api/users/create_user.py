@@ -1,12 +1,13 @@
 import psycopg2
 import bcrypt
+import json
 from database.connection import connect_to_database, create_cursor
 from config import DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST
 
 conn = connect_to_database()
 cursor = create_cursor(conn)
 
-def create_user(username, email, password):
+def create_user(username, email, password, first_name, last_name, expenses, incomes):
     if email_exists(email):
         return {"success": False, "message": "Email already exists"}, 400
 
@@ -17,10 +18,16 @@ def create_user(username, email, password):
 
     try:
         cursor.execute(
-            "INSERT INTO users (username, email, password) VALUES (%s, %s, %s) RETURNING id", 
-            (username, email, hashed_password.decode('utf-8'))
+            "INSERT INTO users (username, email, password, first_name, last_name) VALUES (%s, %s, %s, %s, %s) RETURNING id", 
+            (username, email, hashed_password.decode('utf-8'), first_name, last_name)
         )
         user_id = cursor.fetchone()[0]
+
+        cursor.execute(
+            "INSERT INTO user_categories (user_id, expenses_categories, incomes_categories) VALUES (%s, %s, %s)",
+            (user_id, json.dumps(expenses), json.dumps(incomes))
+        )
+
         conn.commit()
         return {"success": True, "message": "User created successfully", "user_id": user_id}, 200
     except Exception as e:
@@ -30,6 +37,7 @@ def create_user(username, email, password):
     finally:
         cursor.close()
         conn.close()
+
 
 def email_exists(email):
     conn = connect_to_database()

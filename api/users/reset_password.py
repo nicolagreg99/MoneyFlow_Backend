@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from api.login.send_mail import send_email
+from api.users.send_mail import send_email
 import bcrypt
 import psycopg2
 import secrets
