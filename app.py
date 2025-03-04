@@ -173,7 +173,11 @@ def total_incomes_by_month_api(user_id):
     return total_incomes_by_month()
 
 # Delete income
-app.add_url_rule('/api/v1/incomes/<int:id_guadagno>', methods=['DELETE'], view_func=delete_income)
+@app.route('/api/v1/incomes/<int:id_entrata>', methods=['DELETE'])
+@token_required
+def delete_income_api(user_id, id_entrata):
+    return delete_income(id_entrata)
+
 
 # Insert income
 @app.route('/api/v1/incomes/insert', methods=['POST'])
@@ -197,7 +201,10 @@ def insert_expense_api(user_id):
     return insert_expense(user_id)
 
 # Delete expense
-app.add_url_rule('/api/v1/expenses/<int:id_spesa>', methods=['DELETE'], view_func=delete_expense)
+@app.route('/api/v1/expenses/<int:id_spesa>', methods=['DELETE'])
+@token_required
+def delete_expense_api(user_id, id_spesa):
+    return delete_expense(id_spesa)
 
 # Expense total group by day
 @app.route('/api/v1/expenses/total_by_day', methods=['GET'])
