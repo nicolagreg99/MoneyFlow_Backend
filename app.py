@@ -100,18 +100,26 @@ def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
+    ip_address = request.remote_addr
+
+    logger.info(f"Tentativo di login da IP: {ip_address} - Username: {username}")
 
     user = authenticate_user(username, password)
+
     if user:
+        logger.info(f"Login riuscito per l'utente: {username}")
         token = jwt.encode({
             'user_id': user['id'],
             'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
         }, app.config['SECRET_KEY'], algorithm="HS256")
         return jsonify({'token': token}), 200
     else:
+        if username:
+            logger.warning(f"Login fallito per l'utente: {username} - Password errata o utente non esistente.")
+        else:
+            logger.warning(f"Login fallito: username non fornito.")
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
-invalidated_tokens = set()
 
 # User logout
 @app.route('/api/v1/logout', methods=['POST'])
@@ -135,7 +143,7 @@ def me(user_id):
 app.register_blueprint(reset_password_bp)
 
 # Edit user
-@app.route("/api/v1/edit_user", methods=["PUT"])
+@app.route("/api/v1/edit_user", methods=["PATCH"])
 @token_required
 def edit_user_api(user_id):
     return edit_user(user_id)
@@ -254,6 +262,3 @@ def total_balance_api():
 @token_required
 def total_balances_by_month_api(current_user_id):
     return total_balances_by_month()
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
