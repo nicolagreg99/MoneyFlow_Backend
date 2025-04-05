@@ -26,11 +26,10 @@ jobs:
           git clean -fd &&
           git fetch --all &&
           git checkout \$(git describe --tags --abbrev=0) &&
-          git pull &&
+          git pull origin master &&
           cd /home/nicola/app-money &&
           source venv/bin/activate &&
           pip install --upgrade pip &&
           pip install -r app/requirements.txt &&
           sudo systemctl restart moneyflow.service
         "
-
