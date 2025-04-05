@@ -21,11 +21,11 @@ jobs:
     - name: Deploy to Server
       run: |
         ssh -o StrictHostKeyChecking=no nicola@38.242.149.168 "
-          cd /home/nicola/app-money &&
+          cd /home/nicola/app-money/app &&
           git fetch --all &&
-          git checkout $(git describe --tags --abbrev=0) &&
+          git checkout \$(git describe --tags --abbrev=0) &&
           git pull &&
-          source venv/bin/activate &&
+          source ../venv/bin/activate &&
           pip install -r requirements.txt &&
           sudo systemctl restart moneyflow.service
         "
