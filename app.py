@@ -262,4 +262,4 @@ def total_balance_api():
 @app.route('/api/v1/balances/total_by_month', methods=['GET'])
 @token_required
 def total_balances_by_month_api(current_user_id):
-    return total_balances_by_month()
+    return total_balances_by_month() # TEST DEPLOY
