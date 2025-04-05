@@ -22,10 +22,12 @@ jobs:
       run: |
         ssh -o StrictHostKeyChecking=no nicola@38.242.149.168 "
           cd /home/nicola/app-money/app &&
+          git reset --hard &&
+          git clean -fd &&
           git fetch --all &&
-          git checkout $(git describe --tags --abbrev=0) &&
-          git pull origin master &&
-          source ../venv/bin/activate &&
+          git checkout \$(git describe --tags --abbrev=0) &&
+          git pull &&
+          source venv/bin/activate &&
           pip install -r requirements.txt &&
           sudo systemctl restart moneyflow.service
         "
