@@ -120,7 +120,7 @@ def login():
             logger.warning(f"Login fallito: username non fornito.")
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
-invalidated_tokens = ()
+invalidated_tokens = set()
 
 # User logout
 @app.route('/api/v1/logout', methods=['POST'])
