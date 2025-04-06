@@ -1,7 +1,12 @@
-DATABASE_NAME = "money_database"
-DATABASE_USER = "postgres"
-DATABASE_PASSWORD = "money"
-DATABASE_HOST = "192.168.1.5"
+from dotenv import load_dotenv
+import os
 
-SMTP_USER = 'nicolagreg99@gmail.com'  
-SMTP_PASSWORD = 'xxxxx'
+load_dotenv()
+    
+DATABASE_NAME = os.getenv("DATABASE_NAME", "default_database")
+DATABASE_USER = os.getenv("DATABASE_USER", "default_user")
+DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD", "default_password")
+DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
+
+SMTP_USER = os.getenv("SMTP_USER", "default_smtp_user")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "default_smtp_password")
