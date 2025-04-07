@@ -1,71 +1,100 @@
 import json
 import datetime
+import logging
 from flask import request, jsonify
 from database.connection import connect_to_database, create_cursor
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 def edit_user(user_id):
-    """Modifica nome, cognome e categorie di spesa/entrata per un utente autenticato."""
     data = request.json
     updated_at = datetime.datetime.utcnow()
+
+    logger.info(f"Starting to update user with ID: {user_id}")
+    logger.info(f"Request data: {data}")
 
     conn = connect_to_database()
     cursor = create_cursor(conn)
 
     try:
-        # Aggiorna il nome e cognome dell'utente
         fields = []
         values = []
 
         if "first_name" in data:
             fields.append("first_name = %s")
             values.append(data["first_name"])
-
         if "last_name" in data:
             fields.append("last_name = %s")
             values.append(data["last_name"])
 
+        fields.append("updated_at = %s")
+        values.append(updated_at)
+
         if fields:
-            fields.append("updated_at = %s")
-            values.append(updated_at)
             values.append(user_id)
-
             query = f"UPDATE users SET {', '.join(fields)} WHERE id = %s"
-            print(f"🔍 Query UPDATE users: {query} - {values}")  # LOG PER DEBUG
             cursor.execute(query, tuple(values))
+            logger.info(f"Executed query to update user: {query}")
 
-        # Controlla se l'utente ha già un record in user_categories
-        cursor.execute("SELECT * FROM user_categories WHERE user_id = %s", (user_id,))
-        exists = cursor.fetchone()
+        cursor.execute("SELECT expenses_categories, incomes_categories FROM user_categories WHERE user_id = %s", (user_id,))
+        existing_categories = cursor.fetchone()
 
-        expenses_json = json.dumps(data.get("expenses", []))
-        incomes_json = json.dumps(data.get("incomes", []))
+        if existing_categories:
+            current_expenses = existing_categories[0] or []
+            current_incomes = existing_categories[1] or []
+        else:
+            current_expenses = []
+            current_incomes = []
 
-        if exists:
-            # Se esiste, aggiorniamo
+        logger.info(f"Current expenses: {current_expenses}")
+        logger.info(f"Current incomes: {current_incomes}")
+
+        new_expenses = data.get("expenses")
+        new_incomes = data.get("incomes")
+
+        updated_expenses = new_expenses if new_expenses is not None else current_expenses
+        updated_incomes = new_incomes if new_incomes is not None else current_incomes
+
+        if existing_categories:
             update_query = """
-                UPDATE user_categories 
-                SET expenses_categories = %s, incomes_categories = %s 
+                UPDATE user_categories
+                SET expenses_categories = %s, incomes_categories = %s
                 WHERE user_id = %s
             """
-            print(f"🔍 Query UPDATE user_categories: {update_query} - {expenses_json}, {incomes_json}, {user_id}")  # LOG
-            cursor.execute(update_query, (expenses_json, incomes_json, user_id))
+            cursor.execute(update_query, (json.dumps(updated_expenses), json.dumps(updated_incomes), user_id))
+            logger.info(f"Executed query to update categories: {update_query}")
         else:
-            # Se non esiste, creiamo il record
             insert_query = """
-                INSERT INTO user_categories (user_id, expenses_categories, incomes_categories) 
+                INSERT INTO user_categories (user_id, expenses_categories, incomes_categories)
                 VALUES (%s, %s, %s)
             """
-            print(f"🔍 Query INSERT user_categories: {insert_query} - {user_id}, {expenses_json}, {incomes_json}")  # LOG
-            cursor.execute(insert_query, (user_id, expenses_json, incomes_json))
+            cursor.execute(insert_query, (user_id, json.dumps(updated_expenses), json.dumps(updated_incomes)))
+            logger.info(f"Executed query to insert categories: {insert_query}")
 
         conn.commit()
-        print("✅ Database aggiornato con successo!")
-        return jsonify({"success": True, "message": "User updated successfully"}), 200
+        logger.info("Changes committed to the database")
 
+        user_response = {
+            "first_name": data.get("first_name", ""),
+            "last_name": data.get("last_name", ""),
+            "expenses_categories": updated_expenses,
+            "incomes_categories": updated_incomes
+        }
+
+        logger.info(f"User data after update: {user_response}")
+
+        return jsonify({
+            "success": True, 
+            "message": "User updated successfully",
+            "user": user_response
+        }), 200
+    
     except Exception as e:
         conn.rollback()
-        print(f"❌ Errore nel salvataggio: {e}")
-        return jsonify({"success": False, "message": "Error updating user"}), 500
+        logger.error(f"Error updating user: {e}")
+        return jsonify({"success": False, "message": f"Error updating user: {str(e)}"}), 500
+
     finally:
         cursor.close()
         conn.close()
