@@ -4,6 +4,7 @@ import os, logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv()
     
 DATABASE_NAME = os.getenv("DATABASE_NAME", "default_database")
