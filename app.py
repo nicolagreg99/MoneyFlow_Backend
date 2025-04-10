@@ -18,6 +18,7 @@ from api.v1.expenses.list_categories_expenses import list_categories_expenses
 
 from api.v1.incomes.insert_income import insert_income
 from api.v1.incomes.delete_income import delete_income
+from api.v1.incomes.edit_income import edit_income
 from api.v1.incomes.list_interval_income import incomes_list
 from api.v1.incomes.total_incomings_per_day import total_incomes_by_day
 from api.v1.incomes.total_interval_income import total_incomes
@@ -188,6 +189,11 @@ def total_incomes_by_month_api(user_id):
 def delete_income_api(user_id, id_entrata):
     return delete_income(id_entrata)
 
+# Edit income
+@app.route("/api/v1/edit_income/<int:id_entrata>", methods=["PATCH"])
+@token_required
+def edit_income_api(user_id, id_entrata):
+    return edit_income(id_entrata, user_id)
 
 # Insert income
 @app.route('/api/v1/incomes/insert', methods=['POST'])
