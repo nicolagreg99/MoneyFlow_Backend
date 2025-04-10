@@ -1,5 +1,8 @@
 from dotenv import load_dotenv
-import os
+import os, logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 load_dotenv()
     

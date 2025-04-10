@@ -8,6 +8,7 @@ from flask_cors import CORS
 # Import API modules
 from api.v1.expenses.insert_expense import insert_expense
 from api.v1.expenses.delete_expense import delete_expense
+from api.v1.expenses.edit_expense import edit_expense
 from api.v1.expenses.total_expenses_per_day import total_expenses_by_day
 from api.v1.expenses.total_interval_expenses import total_expenses
 from api.v1.expenses.total_types_interval_expense import total_expenses_by_category
@@ -214,6 +215,12 @@ def insert_expense_api(user_id):
 @token_required
 def delete_expense_api(user_id, id_spesa):
     return delete_expense(id_spesa)
+
+# Edit expense
+@app.route("/api/v1/edit_expense/<int:id_spesa>", methods=["PATCH"])
+@token_required
+def edit_expense_api(user_id, id_spesa):
+    return edit_expense(id_spesa, user_id)
 
 # Expense total group by day
 @app.route('/api/v1/expenses/total_by_day', methods=['GET'])

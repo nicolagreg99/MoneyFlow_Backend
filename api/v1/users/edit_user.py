@@ -1,11 +1,8 @@
 import json
 import datetime
-import logging
 from flask import request, jsonify
 from database.connection import connect_to_database, create_cursor
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+from config import logger
 
 def edit_user(user_id):
     data = request.json
