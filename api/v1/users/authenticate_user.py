@@ -9,20 +9,25 @@ def authenticate_user(username, password):
     cursor = create_cursor(conn)
     
     try:
-        cursor.execute("SELECT id, username, password, email FROM users WHERE username = %s", (username,))
+        # Recupera anche il flag verified
+        cursor.execute(
+            "SELECT id, username, password, email, verified FROM users WHERE username = %s",
+            (username,)
+        )
         user = cursor.fetchone()
         
         if user:
-            # Stampa la password hashata nel database
-            print(f"Password in DB per l'utente {username}: {user[2]}")
+            # Controlla se l'utente è verificato
+            if not user[4]:
+                print("Utente non verificato.")
+                return {"error": "Account non verificato. Controlla la tua email per attivarlo."}
             
-            # Stampa l'hash della password inserita per confronto
-            password_hashed = bcrypt.hashpw(password.encode('utf-8'), user[2].encode('utf-8'))
-            print(f"Password inserita hashata: {password_hashed}")
-            
-            # Controlla la corrispondenza tra la password inserita e quella nel DB
+            # Verifica la password
             if bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8')):
-                cursor.execute("UPDATE users SET last_access = CURRENT_TIMESTAMP WHERE username = %s", (username,))
+                cursor.execute(
+                    "UPDATE users SET last_access = CURRENT_TIMESTAMP WHERE username = %s",
+                    (username,)
+                )
                 conn.commit()
                 
                 user_data = {

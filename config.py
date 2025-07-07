@@ -14,3 +14,5 @@ DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
 
 SMTP_USER = os.getenv("SMTP_USER", "default_smtp_user")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "default_smtp_password")
+
+APP_BASE_URL = "http://192.168.1.7:5000"

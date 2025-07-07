@@ -28,6 +28,12 @@ def migrate():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    
+    # Verify user
+    print("Verifica ed eventuale aggiunta colonne 'verified' e 'verification_token'...")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);")
+
 
     # ENTRATE
     cur.execute("""

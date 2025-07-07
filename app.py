@@ -27,6 +27,7 @@ from api.v1.incomes.total_month_income import total_incomes_by_month
 from api.v1.incomes.list_categories_incomes import list_categories_incomes
 
 from api.v1.users.create_user import create_user
+from api.v1.users.create_user import verify_user_token
 from api.v1.users.edit_user import edit_user
 from api.v1.users.authenticate_user import authenticate_user
 from api.v1.users.get_user_profile import get_user_profile
@@ -108,6 +109,10 @@ def login():
 
     user = authenticate_user(username, password)
 
+    if user and 'error' in user:
+        logger.warning(f"Login fallito per l'utente: {username} - {user['error']}")
+        return jsonify({"success": False, "message": user['error']}), 403
+
     if user:
         logger.info(f"Login riuscito per l'utente: {username}")
         token = jwt.encode({
@@ -116,10 +121,7 @@ def login():
         }, app.config['SECRET_KEY'], algorithm="HS256")
         return jsonify({'token': token}), 200
     else:
-        if username:
-            logger.warning(f"Login fallito per l'utente: {username} - Password errata o utente non esistente.")
-        else:
-            logger.warning(f"Login fallito: username non fornito.")
+        logger.warning(f"Login fallito per l'utente: {username} - Password errata o utente non esistente.")
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
 invalidated_tokens = set()
@@ -135,6 +137,32 @@ def logout(current_user_id):
     except Exception as e:
         logger.error(f"Error during logout: {str(e)}")
         return jsonify({'message': 'Logout failed!'}), 500
+
+# Verify email
+@app.route('/api/v1/verify/<token>', methods=['GET'])
+def verify_email(token):
+    success, message = verify_user_token(token)
+    if success:
+        return """
+        <html>
+            <head><title>Verifica completata</title></head>
+            <body style='font-family: Arial, sans-serif; text-align: center; padding-top: 50px;'>
+                <h1 style='color: green;'>✅ Account verificato con successo!</h1>
+                <p>Ora puoi effettuare il login.</p>
+            </body>
+        </html>
+        """, 200
+    else:
+        return """
+        <html>
+            <head><title>Verifica fallita</title></head>
+            <body style='font-family: Arial, sans-serif; text-align: center; padding-top: 50px;'>
+                <h1 style='color: red;'>❌ Link non valido o già usato</h1>
+                <p>Contatta il supporto se hai bisogno di aiuto.</p>
+            </body>
+        </html>
+        """, 400
+
 
 # User profile
 @app.route('/api/v1/me', methods=['GET'])
