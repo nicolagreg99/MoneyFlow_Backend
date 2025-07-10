@@ -3,20 +3,22 @@ name: Deploy to Server
 on:
   push:
     tags:
-      - 'v*'  # Trigger solo su push di tag tipo "v1.0.0"
+      - 'v*'  # Trigger solo su tag v1.0.0 ecc.
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     env:
-      APP_DIR: /home/nicola/app-money/app
       PROJECT_ROOT: /home/nicola/app-money
+      APP_DIR: /home/nicola/app-money/app
       SERVICE_NAME: moneyflow.service
 
     steps:
-    - name: Checkout code (for context only)
+    - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Utile se vuoi i tag o cronologia
 
     - name: Setup SSH Agent
       uses: webfactory/ssh-agent@v0.8.0
@@ -28,38 +30,19 @@ jobs:
         mkdir -p ~/.ssh
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Deploy to Server
+    - name: Sync code to server
+      run: |
+        rsync -az --delete \
+          -e "ssh -o StrictHostKeyChecking=no" \
+          ./ deploy@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
+
+    - name: Remote setup and restart
       run: |
         ssh deploy@${{ secrets.SERVER_IP }} "
           set -e
-
-          echo 'Switching to project directory: $APP_DIR'
-          cd $APP_DIR
-
-          echo 'Fetching tags...'
-          git fetch --tags
-
-          echo 'Checking out tag: ${{ github.ref_name }}'
-          git checkout '${{ github.ref_name }}'
-
-          echo 'Cleaning working directory...'
-          git reset --hard
-          git clean -fd
-
-          echo 'Moving to root: $PROJECT_ROOT'
           cd $PROJECT_ROOT
-
-          echo 'Activating virtual environment...'
           source venv/bin/activate
-
-          echo 'Upgrading pip...'
           pip install --upgrade pip
-
-          echo 'Installing dependencies...'
           pip install -r app/requirements.txt
-
-          echo 'Restarting service: $SERVICE_NAME'
           sudo systemctl restart $SERVICE_NAME
-
-          echo 'Deploy completed successfully.'
         "
