@@ -32,11 +32,11 @@ jobs:
 
     - name: Ensure remote directories exist
       run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "mkdir -p ${{ env.APP_DIR }}"
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "mkdir -p ${{ env.APP_DIR }} && chmod 755 /home/${{ secrets.DEPLOY_USER }}/app-money"
 
     - name: Sync code to server
       run: |
-        rsync -az --delete \
+        rsync -az --delete --no-times --exclude '.git' \
           -e "ssh -o StrictHostKeyChecking=no" \
           ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
 
