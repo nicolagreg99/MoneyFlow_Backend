@@ -27,17 +27,17 @@ jobs:
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "echo ✅ Connected as \$(whoami)"
 
-    - name: Sync project files to server
+    - name: Sync project files to /home/nicola/app-money/app
       run: |
         rsync -az --delete --exclude '.git' \
           -e "ssh -o StrictHostKeyChecking=no" \
-          ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:/home/${{ secrets.DEPLOY_USER }}/app-money/
+          ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:/home/nicola/app-money/app/
 
     - name: Setup environment and restart service
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
-          cd /home/${USER}/app-money
+          cd /home/nicola/app-money/app
           python3 -m venv venv || true
           source venv/bin/activate
           pip install --upgrade pip
