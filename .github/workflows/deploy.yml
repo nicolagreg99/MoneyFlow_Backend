@@ -10,15 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      PROJECT_ROOT: /home/nicola/app-money
-      APP_DIR: /home/nicola/app-money/app
+      PROJECT_ROOT: /home/${{ secrets.DEPLOY_USER }}/app-money
+      APP_DIR: /home/${{ secrets.DEPLOY_USER }}/app-money/app
       SERVICE_NAME: moneyflow.service
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
       with:
-        fetch-depth: 0  # Utile se vuoi i tag o cronologia
+        fetch-depth: 0
 
     - name: Setup SSH Agent
       uses: webfactory/ssh-agent@v0.8.0
@@ -30,15 +30,19 @@ jobs:
         mkdir -p ~/.ssh
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
+    - name: Ensure remote directories exist
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "mkdir -p ${{ env.APP_DIR }}"
+
     - name: Sync code to server
       run: |
         rsync -az --delete \
           -e "ssh -o StrictHostKeyChecking=no" \
-          ./ nicola@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
+          ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
 
     - name: Remote setup and restart
       run: |
-        ssh deploy@${{ secrets.SERVER_IP }} "
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "
           set -e
           cd $PROJECT_ROOT
           source venv/bin/activate
