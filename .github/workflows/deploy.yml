@@ -34,7 +34,7 @@ jobs:
       run: |
         rsync -az --delete \
           -e "ssh -o StrictHostKeyChecking=no" \
-          ./ deploy@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
+          ./ nicola@${{ secrets.SERVER_IP }}:${{ env.APP_DIR }}
 
     - name: Remote setup and restart
       run: |
