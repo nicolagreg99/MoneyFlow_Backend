@@ -41,7 +41,7 @@ jobs:
           python3 -m venv venv || true
           source venv/bin/activate
           pip install --upgrade pip
-          pip install -r app/requirements.txt
+          pip install -r requirements.txt
           sudo systemctl restart moneyflow.service
           echo "✅ Deployment completed and service restarted."
         EOF
