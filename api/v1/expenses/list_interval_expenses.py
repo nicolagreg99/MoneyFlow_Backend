@@ -27,9 +27,22 @@ def expenses_list(user_id):
             return jsonify({"error": "La data di fine deve essere successiva alla data di inizio"}), 400
         
         query = """
-            SELECT id, valore, tipo, giorno, inserted_at, user_id, fields ->> 'descrizione' AS descrizione
+            SELECT 
+                id,
+                valore,
+                tipo,
+                giorno,
+                inserted_at,
+                user_id,
+                currency,
+                valore_base,
+                exchange_rate,
+                fields ->> 'descrizione' AS descrizione
             FROM spese
-            WHERE giorno >= %s AND giorno < %s AND user_id = %s
+            WHERE giorno >= %s 
+              AND giorno < %s 
+              AND user_id = %s
+              AND valore IS NOT NULL
         """
         params = [data_inizio, data_fine + timedelta(days=1), user_id]
 
@@ -44,26 +57,33 @@ def expenses_list(user_id):
         spese_mensili = cursor.fetchall()
         
         if not spese_mensili:
-            return jsonify({"messaggio": "Nessuna spesa effettuata nel periodo specificato per l'utente specificato"}), 200
+            return jsonify({"messaggio": "Nessuna spesa trovata nel periodo specificato"}), 200
         
         spese_json = [
             {
                 "id": spesa[0],
-                "valore": spesa[1],
+                "valore": float(spesa[1]) if spesa[1] is not None else None,
                 "tipo": spesa[2],
-                "giorno": spesa[3].strftime('%Y-%m-%d'),
-                "inserted_at": spesa[4].strftime('%Y-%m-%d %H:%M:%S'),
+                "giorno": spesa[3].strftime('%Y-%m-%d') if spesa[3] else None,
+                "inserted_at": spesa[4].strftime('%Y-%m-%d %H:%M:%S') if spesa[4] else None,
                 "user_id": spesa[5],
-                "descrizione": spesa[6]
+                "currency": spesa[6],
+                "valore_base": float(spesa[7]) if spesa[7] is not None else None,
+                "exchange_rate": float(spesa[8]) if spesa[8] is not None else None,
+                "descrizione": spesa[9] if spesa[9] else ""
             }
             for spesa in spese_mensili
+            if spesa[1] is not None
         ]
         
         return jsonify(spese_json), 200
 
     except Exception as e:
-        print("Errore durante il recupero delle spese mensili:", str(e))
-        return jsonify({"errore": "Impossibile recuperare le spese mensili"}), 500
+        print("Errore durante il recupero delle spese:", str(e))
+        return jsonify({
+            "errore": "Impossibile recuperare le spese",
+            "dettaglio": str(e)
+        }), 500
 
     finally:
         if cursor:

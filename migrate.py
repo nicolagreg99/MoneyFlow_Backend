@@ -73,6 +73,14 @@ def migrate():
         );
     """)
 
+    # EXCHANGE RATES
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS valore_base NUMERIC(10, 2);")
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS valore_base NUMERIC(10, 2);")
+    cur.execute("UPDATE spese SET valore_base = valore WHERE valore_base IS NULL;")
+    cur.execute("UPDATE entrate SET valore_base = valore WHERE valore_base IS NULL;")
+
     conn.commit()
     cur.close()
     conn.close()
