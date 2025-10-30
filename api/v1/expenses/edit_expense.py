@@ -3,8 +3,8 @@ import datetime
 import requests
 from flask import request, jsonify
 from database.connection import connect_to_database, create_cursor
-from config import logger, EXCHANGE_API_URL, EXCHANGE_API_KEY, BASE_CURRENCY
-from collections import OrderedDict
+from config import logger, EXCHANGE_API_URL, EXCHANGE_API_KEY
+from utils.currency_converter import currency_converter
 
 
 def edit_expense(id_spesa, user_id):
@@ -18,16 +18,23 @@ def edit_expense(id_spesa, user_id):
     cursor = create_cursor(conn)
 
     try:
-        cursor.execute("SELECT valore, currency, giorno FROM spese WHERE id = %s AND user_id = %s", (id_spesa, user_id))
+        cursor.execute(
+            "SELECT valore, currency, giorno FROM spese WHERE id = %s AND user_id = %s",
+            (id_spesa, user_id)
+        )
         existing = cursor.fetchone()
         if not existing:
             return jsonify({"success": False, "message": "Spesa non trovata o non autorizzata"}), 404
 
         old_valore, old_currency, old_giorno = existing
 
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_default_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
         fields_to_update = []
         values = []
-        fields_json = OrderedDict()
+        fields_json = {}
 
         tipo = data.get("tipo")
         valore = float(data["valore"]) if "valore" in data else old_valore
@@ -64,27 +71,16 @@ def edit_expense(id_spesa, user_id):
 
         if recalc_needed:
             try:
-                url = f"{EXCHANGE_API_URL}/historical/{giorno.strftime('%Y-%m-%d')}.json"
-                params = {"app_id": EXCHANGE_API_KEY, "symbols": f"{BASE_CURRENCY},{currency}"}
-                logger.info(f"Richiesta tasso di cambio: {url} {params}")
-                response = requests.get(url, params=params)
-
-                if response.status_code != 200:
-                    raise Exception("Errore API tasso di cambio")
-
-                rates = response.json().get("rates", {})
-                if BASE_CURRENCY not in rates or currency not in rates:
-                    raise Exception("Tassi di cambio non disponibili")
-
-                exchange_rate = rates[BASE_CURRENCY] / rates[currency]
-                valore_base = round(valore * exchange_rate, 2)
+                if currency == user_default_currency:
+                    exchange_rate = 1.0
+                else:
+                    exchange_rate = currency_converter.get_historical_rate(
+                        giorno, currency, user_default_currency
+                    )
 
                 fields_to_update.append("exchange_rate = %s")
-                fields_to_update.append("valore_base = %s")
-                values.extend([exchange_rate, valore_base])
-
+                values.append(exchange_rate)
                 fields_json["exchange_rate"] = exchange_rate
-                fields_json["valore_base"] = valore_base
 
             except Exception as fx_error:
                 logger.error(f"Errore nel calcolo tasso di cambio: {fx_error}")
@@ -105,11 +101,12 @@ def edit_expense(id_spesa, user_id):
             cursor.execute(update_query, tuple(values))
             conn.commit()
 
-            logger.info(f"Spesa aggiornata: {update_query}")
+            logger.info(f"Spesa aggiornata con successo (ID {id_spesa})")
             return jsonify({
                 "success": True,
                 "message": "Spesa aggiornata correttamente",
-                "updated_fields": fields_json
+                "updated_fields": fields_json,
+                "currency_base": user_default_currency
             }), 200
         else:
             return jsonify({

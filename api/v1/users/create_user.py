@@ -6,7 +6,7 @@ from database.connection import connect_to_database, create_cursor
 from api.v1.users.send_mail import send_email
 from config import APP_BASE_URL
 
-def create_user(username, email, password, first_name, last_name, expenses, incomes):
+def create_user(username, email, password, first_name, last_name, expenses, incomes, default_currency='EUR'):
     if email_exists(email):
         return {"success": False, "message": "Email already exists"}, 400
 
@@ -15,7 +15,6 @@ def create_user(username, email, password, first_name, last_name, expenses, inco
 
     conn = connect_to_database()
     cursor = create_cursor(conn)
-
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
     try:
@@ -23,11 +22,15 @@ def create_user(username, email, password, first_name, last_name, expenses, inco
 
         cursor.execute(
             """
-            INSERT INTO users (username, email, password, first_name, last_name, verified, verification_token)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (
+                username, email, password, first_name, last_name,
+                verified, verification_token, default_currency
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
-            (username, email, hashed_password.decode('utf-8'), first_name, last_name, False, verification_token)
+            (username, email, hashed_password.decode('utf-8'),
+             first_name, last_name, False, verification_token, default_currency)
         )
         user_id = cursor.fetchone()[0]
 
@@ -51,12 +54,13 @@ def create_user(username, email, password, first_name, last_name, expenses, inco
         """
 
         result = send_email(email_subject, email_body, email)
-        print(f"[CREATE_USER] Risultato invio email: {result}")
+        print(f"[CREATE_USER] Email result: {result}")
 
         return {
             "success": True,
             "message": "User created successfully. Please check your email to verify your account.",
-            "user_id": user_id
+            "user_id": user_id,
+            "default_currency": default_currency
         }, 200
 
     except psycopg2.Error as e:

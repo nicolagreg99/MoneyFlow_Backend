@@ -24,6 +24,9 @@ def edit_user(user_id):
         if "last_name" in data:
             fields.append("last_name = %s")
             values.append(data["last_name"])
+        if "default_currency" in data:
+            fields.append("default_currency = %s")
+            values.append(data["default_currency"].upper())
 
         fields.append("updated_at = %s")
         values.append(updated_at)
@@ -75,6 +78,7 @@ def edit_user(user_id):
         user_response = {
             "first_name": data.get("first_name", ""),
             "last_name": data.get("last_name", ""),
+            "default_currency": data.get("default_currency", ""),
             "expenses_categories": updated_expenses,
             "incomes_categories": updated_incomes
         }

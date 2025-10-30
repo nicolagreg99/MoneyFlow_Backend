@@ -3,10 +3,11 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
 import logging
+from utils.currency_converter import currency_converter
 
 logger = logging.getLogger(__name__)
 
-def total_expenses_by_category(base_currency="EUR"):
+def total_expenses_by_category():
     conn = None
     cursor = None
 
@@ -40,13 +41,18 @@ def total_expenses_by_category(base_currency="EUR"):
         except ValueError:
             return jsonify({"error": "Invalid date format, should be YYYY-MM-DD"}), 400
 
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
         tipi = request.args.getlist("tipo")
 
         query = """
-            SELECT tipo, SUM(valore_base) AS total_per_type
+            SELECT tipo, SUM(valore) AS total_per_type, currency, exchange_rate
             FROM spese
             WHERE giorno BETWEEN %s AND %s
               AND user_id = %s
+              AND valore IS NOT NULL
         """
 
         params = [from_date, to_date, user_id]
@@ -56,7 +62,7 @@ def total_expenses_by_category(base_currency="EUR"):
             query += f" AND tipo IN ({placeholders})"
             params.extend(tipi)
 
-        query += " GROUP BY tipo;"
+        query += " GROUP BY tipo, currency, exchange_rate;"
 
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
@@ -64,15 +70,37 @@ def total_expenses_by_category(base_currency="EUR"):
         if not rows:
             return jsonify({"message": "No expenses found in the selected period"}), 200
 
+        category_totals = {}
+        for row in rows:
+            tipo = row[0]
+            totale = float(row[1] or 0)
+            currency_spesa = row[2]
+            exchange_rate = float(row[3]) if row[3] is not None else 1.0
+
+            if currency_spesa == user_currency:
+                totale_convertito = totale
+            else:
+                totale_convertito = currency_converter.convert_amount(
+                    totale, 
+                    from_date,
+                    currency_spesa, 
+                    user_currency
+                )
+
+            if tipo in category_totals:
+                category_totals[tipo] += totale_convertito
+            else:
+                category_totals[tipo] = totale_convertito
+
         result = [
-            {"tipo": row[0], "totale_per_tipo": round(float(row[1] or 0), 2)}
-            for row in rows
+            {"tipo": tipo, "totale_per_tipo": round(totale, 2)}
+            for tipo, totale in category_totals.items()
         ]
 
         logger.info(f"Total expenses by category calculated for user_id={user_id}")
 
         return jsonify({
-            "currency": base_currency,
+            "currency": user_currency,
             "totali_per_categoria": result
         }), 200
 

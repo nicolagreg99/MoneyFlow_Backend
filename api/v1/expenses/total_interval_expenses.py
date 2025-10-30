@@ -3,6 +3,7 @@ from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
 import logging
+from utils.currency_converter import currency_converter
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,12 @@ def total_expenses(base_currency="EUR"):
         except ValueError:
             return jsonify({"error": "Invalid date format, use YYYY-MM-DD"}), 400
 
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
         query = """
-            SELECT SUM(valore_base)
+            SELECT valore, currency, giorno
             FROM spese
             WHERE giorno BETWEEN %s AND %s
               AND user_id = %s
@@ -56,13 +61,35 @@ def total_expenses(base_currency="EUR"):
             params.extend(expense_types)
 
         cursor.execute(query, tuple(params))
-        total = cursor.fetchone()[0] or 0
+        expenses = cursor.fetchall()
+
+        total = 0
+        for expense in expenses:
+            valore = float(expense[0] or 0)
+            currency_spesa = expense[1]
+            giorno = expense[2]
+
+            # DEBUG
+            print(f"TOTAL DEBUG: Convertendo {valore} {currency_spesa} -> {user_currency}")
+
+            if currency_spesa == user_currency:
+                totale_convertito = valore
+            else:
+                totale_convertito = currency_converter.convert_amount(
+                    valore, 
+                    giorno,
+                    currency_spesa, 
+                    user_currency
+                )
+            
+            print(f"TOTAL DEBUG: Risultato: {totale_convertito}")
+            total += totale_convertito
 
         logger.info(f"Total expenses calculated for user_id={user_id}, range={start_date_str} - {end_date_str}, total={total}")
 
         return jsonify({
             "total": round(float(total), 2),
-            "currency": base_currency
+            "currency": user_currency
         }), 200
 
     except Exception as e:

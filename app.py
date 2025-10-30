@@ -83,8 +83,12 @@ def register():
     last_name = data.get('last_name')
     expenses = data.get('expenses', [])
     incomes = data.get('incomes', [])
+    default_currency = data.get('currency', 'EUR').upper()
 
-    response, status_code = create_user(username, email, password, first_name, last_name, expenses, incomes)
+    response, status_code = create_user(
+        username, email, password, first_name, last_name,
+        expenses, incomes, default_currency
+    )
     
     if status_code == 200:
         user_id = response.get("user_id")

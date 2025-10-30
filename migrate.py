@@ -73,13 +73,38 @@ def migrate():
         );
     """)
 
-    # EXCHANGE RATES
+    # EXCHANGE RATES - COLONNE PER SPESE
+    print("Creazione colonne echange rates spese...")
     cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
-    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS valore_base NUMERIC(10, 2);")
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
+    
+    # EXCHANGE RATES - COLONNE PER ENTRATE
+    print("Creazione colonne echange rates entrate...")
     cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
-    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS valore_base NUMERIC(10, 2);")
-    cur.execute("UPDATE spese SET valore_base = valore WHERE valore_base IS NULL;")
-    cur.execute("UPDATE entrate SET valore_base = valore WHERE valore_base IS NULL;")
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
+    
+    # VALUTA DEFAULT UTENTE
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS default_currency VARCHAR(3) DEFAULT 'EUR';")
+
+    # AGGIORNA I DATI ESISTENTI
+    print("Aggiornamento dati esistenti...")
+    cur.execute("UPDATE spese SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
+    cur.execute("UPDATE spese SET currency = 'EUR' WHERE currency IS NULL;")
+    cur.execute("UPDATE entrate SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
+    cur.execute("UPDATE entrate SET currency = 'EUR' WHERE currency IS NULL;")
+
+    print("Creazione tabella cache tassi di cambio...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS exchange_rates_cache (
+            id SERIAL PRIMARY KEY,
+            base_currency VARCHAR(3) NOT NULL,
+            target_currency VARCHAR(3) NOT NULL,
+            rate_date DATE NOT NULL,
+            exchange_rate NUMERIC(12,6) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(base_currency, target_currency, rate_date)
+        );
+    """)
 
     conn.commit()
     cur.close()
