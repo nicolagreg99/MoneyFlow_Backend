@@ -3,8 +3,7 @@ import datetime
 from flask import request, jsonify
 from database.connection import connect_to_database, create_cursor
 from config import logger
-from collections import OrderedDict
-
+from utils.currency_converter import currency_converter
 
 def edit_income(id_entrata, user_id):
     data = request.json
@@ -17,6 +16,23 @@ def edit_income(id_entrata, user_id):
     cursor = create_cursor(conn)
 
     try:
+        # Recupera l'entrata esistente
+        cursor.execute(
+            "SELECT valore, currency, giorno FROM entrate WHERE id = %s AND user_id = %s",
+            (id_entrata, user_id)
+        )
+        existing = cursor.fetchone()
+        if not existing:
+            return jsonify({"success": False, "message": "Entrata non trovata"}), 404
+
+        old_valore, old_currency, old_giorno = existing
+
+        # Recupera valuta utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
+        # Validazione tipi
         cursor.execute("SELECT DISTINCT tipo FROM entrate WHERE user_id = %s", (user_id,))
         valid_types = [row[0] for row in cursor.fetchall()]
         logger.info(f"Valid 'tipo' values for user: {valid_types}")
@@ -24,10 +40,20 @@ def edit_income(id_entrata, user_id):
         fields_to_update = []
         values = []
 
-        fields_json = OrderedDict()
+        # Prepara i dati per l'aggiornamento
+        tipo = data.get("tipo")
+        valore = float(data["valore"]) if "valore" in data else old_valore
+        giorno_str = data.get("giorno")
+        currency = data.get("currency", old_currency).upper()
 
+        giorno = (
+            datetime.datetime.strptime(giorno_str, "%Y-%m-%d").date()
+            if giorno_str
+            else old_giorno
+        )
+
+        # Validazione tipo
         if "tipo" in data:
-            tipo = data["tipo"]
             if not valid_types:
                 return jsonify({
                     "success": False,
@@ -40,28 +66,41 @@ def edit_income(id_entrata, user_id):
                 }), 400
             fields_to_update.append("tipo = %s")
             values.append(tipo)
-            fields_json["tipo"] = tipo
-        else:
-            fields_json["tipo"] = None
 
         if "valore" in data:
             fields_to_update.append("valore = %s")
-            values.append(data["valore"])
-            fields_json["valore"] = data["valore"]
-        else:
-            fields_json["valore"] = None
+            values.append(valore)
 
         if "giorno" in data:
             fields_to_update.append("giorno = %s")
-            values.append(data["giorno"])
-            fields_json["giorno"] = data["giorno"]
-        else:
-            fields_json["giorno"] = None
+            values.append(giorno)
 
-        fields_json["descrizione"] = data.get("descrizione", "")
+        if "currency" in data:
+            fields_to_update.append("currency = %s")
+            values.append(currency)
 
-        fields_json["user_id"] = user_id
+        # Ricalcola exchange_rate se necessario
+        recalc_needed = any(k in data for k in ["valore", "currency", "giorno"])
+        if recalc_needed:
+            try:
+                if currency == user_currency:
+                    exchange_rate = 1.0
+                else:
+                    exchange_rate = currency_converter.get_historical_rate(
+                        giorno, currency, user_currency
+                    )
+                fields_to_update.append("exchange_rate = %s")
+                values.append(exchange_rate)
+            except Exception as fx_error:
+                logger.error(f"Errore nel calcolo tasso di cambio: {fx_error}")
+                return jsonify({"success": False, "message": "Errore nel recupero del tasso di cambio"}), 500
 
+        # Aggiorna fields
+        descrizione = data.get("descrizione", "")
+        fields_json = {
+            "descrizione": descrizione,
+            "user_id": user_id
+        }
         fields_to_update.append("fields = %s")
         values.append(json.dumps(fields_json))
 
@@ -79,8 +118,9 @@ def edit_income(id_entrata, user_id):
 
             return jsonify({
                 "success": True,
-                "message": "Income updated",
-                "updated_fields": fields_json
+                "message": "Income updated successfully",
+                "updated_fields": fields_json,
+                "currency_base": user_currency
             }), 200
         else:
             return jsonify({

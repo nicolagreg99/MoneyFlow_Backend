@@ -2,8 +2,12 @@ from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 import jwt
 from datetime import datetime, timedelta
+from utils.currency_converter import currency_converter
 
 def total_incomes_by_month():
+    conn = None
+    cursor = None
+    
     try:
         token = request.headers.get('x-access-token')
         if not token:
@@ -19,20 +23,27 @@ def total_incomes_by_month():
 
         # Calcola la data di inizio e fine (ultimi 12 mesi)
         oggi = datetime.today()
-        data_inizio = (oggi - timedelta(days=365)).replace(day=1)  # 1° giorno di 12 mesi fa
-        data_fine = (oggi + timedelta(days=31)).replace(day=1)  # 1° giorno del mese successivo
+        data_inizio = (oggi - timedelta(days=365)).replace(day=1)
+        data_fine = (oggi + timedelta(days=31)).replace(day=1)
 
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # Query per ottenere la somma delle entrate negli ultimi 12 mesi
+        # Recupera valuta utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
+        # Query per ottenere la somma delle entrate con valuta
         query = """
             SELECT CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
                    CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
-                   SUM(valore) AS totale_per_mese
+                   SUM(valore) AS totale_per_mese,
+                   currency,
+                   exchange_rate
             FROM entrate
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
-            GROUP BY anno, mese
+            GROUP BY anno, mese, currency, exchange_rate
             ORDER BY anno, mese;
         """
         cursor.execute(query, (data_inizio, data_fine, user_id))
@@ -44,20 +55,54 @@ def total_incomes_by_month():
             7: "Luglio", 8: "Agosto", 9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
         }
 
-        # Creiamo una struttura per contenere tutti i mesi, anche se alcuni hanno valore 0
+        # Creiamo una struttura per contenere tutti i mesi
         result = {}
         for i in range(12):
-            mese_riferimento = (oggi.month - i - 1) % 12 + 1  # Calcola il mese corretto
-            anno_riferimento = oggi.year if oggi.month - i > 0 else oggi.year - 1  # Calcola l'anno corretto
-            result[f"{mesi_nomi[mese_riferimento]} {anno_riferimento}"] = 0  # Default a 0
+            mese_riferimento = (oggi.month - i - 1) % 12 + 1
+            anno_riferimento = oggi.year if oggi.month - i > 0 else oggi.year - 1
+            result[f"{mesi_nomi[mese_riferimento]} {anno_riferimento}"] = 0.0
 
-        # Inseriamo i dati dalla query nei risultati
-        for anno, mese, totale in totali_mensili:
+        # Calcola totali convertiti per mese
+        monthly_totals_converted = {}
+        for anno, mese, totale, currency_entrata, exchange_rate in totali_mensili:
             chiave = f"{mesi_nomi[mese]} {anno}"
-            result[chiave] = round(float(totale), 2)  # Assicuriamo il formato corretto
+            totale_val = float(totale or 0)
+            exchange_rate_val = float(exchange_rate) if exchange_rate is not None else 1.0
+            
+            # Conversione valuta
+            if currency_entrata == user_currency:
+                totale_convertito = totale_val
+            else:
+                # Usa una data approssimativa del mese per la conversione
+                data_riferimento = datetime(anno, mese, 15)
+                totale_convertito = currency_converter.convert_amount(
+                    totale_val, 
+                    data_riferimento,
+                    currency_entrata, 
+                    user_currency
+                )
+            
+            if chiave in monthly_totals_converted:
+                monthly_totals_converted[chiave] += totale_convertito
+            else:
+                monthly_totals_converted[chiave] = totale_convertito
 
-        return jsonify(result), 200
+        # Inseriamo i dati convertiti nei risultati
+        for chiave, totale in monthly_totals_converted.items():
+            if chiave in result:
+                result[chiave] = round(totale, 2)
+
+        return jsonify({
+            "currency": user_currency,
+            "monthly_totals": result
+        }), 200
 
     except Exception as e:
         print("Errore durante il recupero dei totali mensili:", str(e))
         return jsonify({"errore": "Impossibile recuperare i totali mensili"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()

@@ -12,10 +12,10 @@ def get_user_profile(user_id):
     try:
         logger.info(f"Fetching user profile for user_id: {user_id}")
 
-        # Query aggiornata per includere le categorie
+        # Query aggiornata per includere le categorie E la valuta default
         cursor.execute("""
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, 
-                   uc.expenses_categories, uc.incomes_categories
+                   u.default_currency, uc.expenses_categories, uc.incomes_categories
             FROM users u
             LEFT JOIN user_categories uc ON u.id = uc.user_id
             WHERE u.id = %s
@@ -30,8 +30,9 @@ def get_user_profile(user_id):
                 "email": user[2],
                 "first_name": user[3],
                 "last_name": user[4],
-                "expenses_categories": user[5] if user[5] else [],
-                "incomes_categories": user[6] if user[6] else []
+                "default_currency": user[5] if user[5] else "EUR",
+                "expenses_categories": user[6] if user[6] else [],
+                "incomes_categories": user[7] if user[7] else []
             }
             logger.info(f"User profile data: {user_info}")
             return jsonify(user_info), 200

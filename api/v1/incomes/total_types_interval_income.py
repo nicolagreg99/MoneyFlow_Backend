@@ -2,6 +2,7 @@ from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
+from utils.currency_converter import currency_converter
 
 def total_incomes_by_category():
     conn = None
@@ -41,10 +42,15 @@ def total_incomes_by_category():
         if to_date < from_date:
             return jsonify({"error": "End date must be after start date"}), 400
 
-        tipi = request.args.getlist('tipo')  # Supporta più valori "tipo"
+        # Recupera valuta utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
+        tipi = request.args.getlist('tipo')
 
         query = """
-            SELECT tipo, SUM(valore) AS totale_per_tipo
+            SELECT tipo, SUM(valore) AS totale_per_tipo, currency, exchange_rate
             FROM entrate
             WHERE giorno BETWEEN %s AND %s
               AND user_id = %s
@@ -56,17 +62,50 @@ def total_incomes_by_category():
             query += f" AND tipo IN ({placeholders})"
             params.extend(tipi)
 
-        query += " GROUP BY tipo;"
+        query += " GROUP BY tipo, currency, exchange_rate;"
 
         cursor.execute(query, tuple(params))
         totali_per_tipo = cursor.fetchall()
         
         if not totali_per_tipo:
-            return jsonify({"messaggio": "Nessuna entrata trovata nell'intervallo specificato"}), 200
+            return jsonify({
+                "messaggio": "Nessuna entrata trovata nell'intervallo specificato",
+                "currency": user_currency
+            }), 200
         
-        result = [{"tipo": row[0], "totale_per_tipo": row[1]} for row in totali_per_tipo]
+        # Calcola totali convertiti per categoria
+        category_totals = {}
+        for row in totali_per_tipo:
+            tipo = row[0]
+            totale = float(row[1] or 0)
+            currency_entrata = row[2]
+            exchange_rate = float(row[3]) if row[3] is not None else 1.0
+
+            # Conversione valuta
+            if currency_entrata == user_currency:
+                totale_convertito = totale
+            else:
+                totale_convertito = currency_converter.convert_amount(
+                    totale, 
+                    from_date,  # usa la data di inizio intervallo
+                    currency_entrata, 
+                    user_currency
+                )
+
+            if tipo in category_totals:
+                category_totals[tipo] += totale_convertito
+            else:
+                category_totals[tipo] = totale_convertito
+
+        result = [
+            {"tipo": tipo, "totale_per_tipo": round(totale, 2)}
+            for tipo, totale in category_totals.items()
+        ]
         
-        return jsonify(result), 200
+        return jsonify({
+            "currency": user_currency,
+            "totali_per_categoria": result
+        }), 200
 
     except Exception as e:
         print("Errore durante il recupero:", str(e))

@@ -1,6 +1,7 @@
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime, timedelta
+from utils.currency_converter import currency_converter
 
 def incomes_list(user_id):
     conn = None
@@ -26,8 +27,15 @@ def incomes_list(user_id):
         if data_fine < data_inizio:
             return jsonify({"error": "La data di fine deve essere successiva alla data di inizio"}), 400
 
+        # Recupera valuta utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
         query = """
-            SELECT id, valore, tipo, giorno, inserted_at, user_id, fields ->> 'descrizione' AS descrizione
+            SELECT 
+                id, valore, tipo, giorno, inserted_at, user_id, 
+                currency, exchange_rate, fields ->> 'descrizione' AS descrizione
             FROM entrate
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
         """
@@ -44,22 +52,46 @@ def incomes_list(user_id):
         entrate_mensili = cursor.fetchall()
 
         if not entrate_mensili:
-            return jsonify({"messaggio": "Nessuna entrata registrata nel periodo specificato"}), 200
+            return jsonify({
+                "messaggio": "Nessuna entrata registrata nel periodo specificato",
+                "default_currency": user_currency
+            }), 200
 
-        entrate_json = [
-            {
+        entrate_json = []
+        for entrata in entrate_mensili:
+            valore_originale = float(entrata[1])
+            currency_entrata = entrata[6]
+            exchange_rate = float(entrata[7]) if entrata[7] is not None else 1.0
+            
+            # Conversione valuta
+            if currency_entrata == user_currency:
+                valore_convertito = valore_originale
+            else:
+                valore_convertito = currency_converter.convert_amount(
+                    valore_originale, 
+                    entrata[3],  # giorno
+                    currency_entrata, 
+                    user_currency
+                )
+
+            entrate_json.append({
                 "id": entrata[0],
-                "valore": entrata[1],
+                "valore": valore_originale,
+                "converted_value": valore_convertito,
                 "tipo": entrata[2],
                 "giorno": entrata[3].strftime('%Y-%m-%d'),
                 "inserted_at": entrata[4].strftime('%Y-%m-%d %H:%M:%S'),
                 "user_id": entrata[5],
-                "descrizione": entrata[6]
-            }
-            for entrata in entrate_mensili
-        ]
+                "currency": currency_entrata,
+                "exchange_rate": exchange_rate,
+                "descrizione": entrata[8] if entrata[8] else "",
+                "user_currency": user_currency
+            })
 
-        return jsonify(entrate_json), 200
+        return jsonify({
+            "default_currency": user_currency,
+            "incomes": entrate_json
+        }), 200
 
     except Exception as e:
         print("Errore durante il recupero delle entrate mensili:", str(e))

@@ -2,6 +2,7 @@ from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from datetime import datetime
 import jwt
+from utils.currency_converter import currency_converter
 
 def total_incomes():
     conn = None
@@ -42,8 +43,14 @@ def total_incomes():
         if end_date < start_date:
             return jsonify({"error": "End date must be after start date"}), 400
         
+        # Recupera valuta utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        user_currency_result = cursor.fetchone()
+        user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
+
+        # Query per entrate con valuta
         query = """
-            SELECT SUM(valore)
+            SELECT valore, currency, exchange_rate, giorno
             FROM entrate
             WHERE giorno BETWEEN %s AND %s AND user_id = %s
         """
@@ -55,9 +62,33 @@ def total_incomes():
             params.extend(income_types)
         
         cursor.execute(query, tuple(params))
-        total = cursor.fetchone()[0]
+        incomes = cursor.fetchall()
 
-        return jsonify({"total": total if total is not None else 0}), 200
+        # Calcola totale convertito
+        total = 0
+        for income in incomes:
+            valore = float(income[0] or 0)
+            currency_entrata = income[1]
+            exchange_rate = float(income[2]) if income[2] is not None else 1.0
+            giorno = income[3]
+
+            # Conversione valuta
+            if currency_entrata == user_currency:
+                totale_convertito = valore
+            else:
+                totale_convertito = currency_converter.convert_amount(
+                    valore, 
+                    giorno,
+                    currency_entrata, 
+                    user_currency
+                )
+
+            total += totale_convertito
+
+        return jsonify({
+            "total": round(float(total), 2) if total is not None else 0,
+            "currency": user_currency
+        }), 200
 
     except Exception as e:
         print("Error retrieving totals for the period:", str(e))
