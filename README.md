@@ -74,41 +74,18 @@ The API will be available at `http://localhost:5000`
 
 ## API Documentation
 
-### Base URL
-```
-http://localhost:5000/api/v1
-```
+For complete API documentation, see [Test Suite Documentation](./docs/API.md)
 
-### Main Endpoints
+### Quick Reference
 
-#### Authentication
-- `POST /login` - User authentication
-
-#### User Management
-- `GET /me` - Get current user profile
-- `PATCH /edit_user` - Update user settings (including currency)
-
-#### Expenses
-- `POST /expenses/insert` - Create new expense
-- `GET /expenses/list` - List all expenses
-- `GET /expenses/total` - Get total expenses (with date range)
-- `GET /expenses/list_categories` - List expense categories
-- `DELETE /expenses/{id}` - Delete specific expense
-
-#### Incomes
-- `POST /incomes/insert` - Create new income
-- `GET /incomes/list` - List all incomes
-- `GET /incomes/total` - Get total incomes (with date range)
-- `GET /incomes/list_categories` - List income categories
-- `DELETE /incomes/{id}` - Delete specific income
-
-#### Balances
-- `GET /balances/total` - Calculate net balance (incomes - expenses)
-
+- **Base URL**: `http://localhost:5000/api/v1`
+- **Authentication**: JWT Bearer token
+- **Main Resources**: Users, Expenses, Incomes, Balances
+- **Supported Formats**: JSON
 
 ## Testing
 
-For complete documentation on the test suite, see [Test Suite Documentation](./docs/TESTING.md)
+For complete testing documentation on the test suite, see [Test Suite Documentation](./docs/TESTING.md)
 
 The test suite includes:
 -Integration tests for Currency, Expenses and Incomes
