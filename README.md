@@ -74,7 +74,7 @@ The API will be available at `http://localhost:5000`
 
 ## API Documentation
 
-For complete API documentation, see [Test Suite Documentation](./docs/API.md)
+For complete API documentation, see [API Documentation](./docs/API.md)
 
 ### Quick Reference
 
