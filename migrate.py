@@ -10,6 +10,9 @@ def migrate():
     )
     cur = conn.cursor()
 
+
+# -----------------------------------------------------
+# CREATE TABLES
     print("Creazione tabelle...")
 
     # USERS
@@ -28,12 +31,6 @@ def migrate():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
-    
-    # Verify user
-    print("Verifica ed eventuale aggiunta colonne 'verified' e 'verification_token'...")
-    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;")
-    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);")
-
 
     # ENTRATE
     cur.execute("""
@@ -73,6 +70,29 @@ def migrate():
         );
     """)
 
+    print("Creazione tabella cache tassi di cambio...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS exchange_rates_cache (
+            id SERIAL PRIMARY KEY,
+            base_currency VARCHAR(3) NOT NULL,
+            target_currency VARCHAR(3) NOT NULL,
+            rate_date DATE NOT NULL,
+            exchange_rate NUMERIC(12,6) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(base_currency, target_currency, rate_date)
+        );
+    """)
+
+    conn.commit()
+
+# -----------------------------------------------------
+# UPDATE COLUMNS
+
+    # Verify user
+    print("Verifica ed eventuale aggiunta colonne 'verified' e 'verification_token'...")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);")
+
     # EXCHANGE RATES - COLONNE PER SPESE
     print("Creazione colonne echange rates spese...")
     cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
@@ -92,19 +112,6 @@ def migrate():
     cur.execute("UPDATE spese SET currency = 'EUR' WHERE currency IS NULL;")
     cur.execute("UPDATE entrate SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
     cur.execute("UPDATE entrate SET currency = 'EUR' WHERE currency IS NULL;")
-
-    print("Creazione tabella cache tassi di cambio...")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS exchange_rates_cache (
-            id SERIAL PRIMARY KEY,
-            base_currency VARCHAR(3) NOT NULL,
-            target_currency VARCHAR(3) NOT NULL,
-            rate_date DATE NOT NULL,
-            exchange_rate NUMERIC(12,6) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(base_currency, target_currency, rate_date)
-        );
-    """)
 
     conn.commit()
     cur.close()
