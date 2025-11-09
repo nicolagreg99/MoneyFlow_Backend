@@ -18,6 +18,7 @@ def insert_expense(user_id):
         tipo = data.get("tipo")
         giorno_str = data.get("giorno")
         currency = data.get("currency", "").upper()
+        descrizione = data.get("descrizione") or data.get("description") or ""
         fields = data.get("fields", {})
 
         if not valore or not tipo or not giorno_str:
@@ -42,6 +43,16 @@ def insert_expense(user_id):
             exchange_rate = currency_converter.get_historical_rate(
                 giorno, currency, user_currency
             )
+
+        # ✅ Creiamo un JSON completo da salvare nella colonna fields
+        fields.update({
+            "tipo": tipo,
+            "valore": valore,
+            "currency": currency,
+            "exchange_rate": exchange_rate,
+            "descrizione": descrizione,
+            "user_id": user_id
+        })
 
         query = """
             INSERT INTO spese (
@@ -72,11 +83,12 @@ def insert_expense(user_id):
             "exchange_rate": exchange_rate,
             "currency": currency,
             "user_currency": user_currency,
-            "giorno": str(giorno)
+            "giorno": str(giorno),
+            "fields": fields
         }), 201
 
     except Exception as e:
-        print("Error while inserting expense:", str(e))
+        print("❌ Error while inserting expense:", str(e))
         return jsonify({"error": "Error while inserting expense", "details": str(e)}), 500
 
     finally:

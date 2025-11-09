@@ -4,18 +4,23 @@ from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from utils.currency_converter import currency_converter
 
+
 def insert_income(user_id):
     """Inserisce una nuova entrata per l'utente autenticato."""
     conn = None
     cursor = None
 
     try:
-        data = request.json
-        valore = data['valore']
-        tipo = data['tipo']
-        giorno_str = data['giorno']
-        currency = data.get('currency', '').upper()
-        descrizione = data.get('descrizione', '')
+        data = request.get_json()
+        valore = data.get("valore")
+        tipo = data.get("tipo")
+        giorno_str = data.get("giorno")
+        currency = data.get("currency", "").upper()
+        descrizione = data.get("descrizione") or data.get("description") or ""
+        fields = data.get("fields", {})
+
+        if not valore or not tipo or not giorno_str:
+            return jsonify({"error": "Valore, tipo e giorno sono obbligatori"}), 400
 
         valore = float(valore)
         giorno = datetime.strptime(giorno_str, "%Y-%m-%d").date()
@@ -40,33 +45,50 @@ def insert_income(user_id):
                 giorno, currency, user_currency
             )
 
-        # Prepara i fields
-        fields_data = {
+        # ✅ Crea un JSON completo per la colonna fields
+        fields.update({
+            "tipo": tipo,
+            "valore": valore,
+            "currency": currency,
+            "exchange_rate": exchange_rate,
             "descrizione": descrizione,
-            "currency_original": currency,
-            "user_currency_at_insert": user_currency
-        }
+            "user_id": user_id
+        })
 
         cursor.execute(
-            """INSERT INTO entrate (valore, tipo, giorno, user_id, fields, currency, exchange_rate) 
-               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;""", 
-            (valore, tipo, giorno, user_id, json.dumps(fields_data), currency, exchange_rate)
+            """
+            INSERT INTO entrate (
+                valore,
+                tipo,
+                giorno,
+                user_id,
+                fields,
+                currency,
+                exchange_rate
+            )
+            VALUES (%s, %s, %s, %s, %s::json, %s, %s)
+            RETURNING id;
+            """,
+            (valore, tipo, giorno, user_id, json.dumps(fields), currency, exchange_rate)
         )
 
         new_id = cursor.fetchone()[0]
         conn.commit()
-        
+
         return jsonify({
+            "success": True,
             "message": "Income inserted successfully!",
             "id": new_id,
             "valore": valore,
             "currency": currency,
             "exchange_rate": exchange_rate,
-            "user_currency": user_currency
+            "user_currency": user_currency,
+            "giorno": str(giorno),
+            "fields": fields
         }), 201
 
     except Exception as e:
-        print("Error inserting income:", str(e))
+        print("❌ Error inserting income:", str(e))
         if conn:
             conn.rollback()
         return jsonify({"error": "Impossible to insert the income", "details": str(e)}), 500
