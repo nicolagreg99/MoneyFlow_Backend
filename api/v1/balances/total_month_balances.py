@@ -11,11 +11,23 @@ def total_balances_by_month(user_id):
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # Query entrate
+        # ✅ Recupera la valuta di default dell’utente
+        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        user_currency = row[0] if row and row[0] else "EUR"
+
+        # ✅ Query ENTRATE con conversione in valuta utente
         query_entrate = """
-            SELECT CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
-                   CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
-                   SUM(valore) AS totale_entrate
+            SELECT 
+                CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
+                CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
+                SUM(
+                    valore * 
+                    CASE 
+                        WHEN exchange_rate IS NOT NULL THEN exchange_rate 
+                        ELSE 1 
+                    END
+                ) AS totale_entrate
             FROM entrate
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
             GROUP BY anno, mese
@@ -24,11 +36,18 @@ def total_balances_by_month(user_id):
         cursor.execute(query_entrate, (data_inizio, data_fine, user_id))
         totali_entrate = cursor.fetchall()
 
-        # Query spese
+        # ✅ Query SPESE con conversione in valuta utente
         query_spese = """
-            SELECT CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
-                   CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
-                   SUM(valore) AS totale_spese
+            SELECT 
+                CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
+                CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
+                SUM(
+                    valore * 
+                    CASE 
+                        WHEN exchange_rate IS NOT NULL THEN exchange_rate 
+                        ELSE 1 
+                    END
+                ) AS totale_spese
             FROM spese
             WHERE giorno >= %s AND giorno < %s AND user_id = %s
             GROUP BY anno, mese
@@ -37,56 +56,56 @@ def total_balances_by_month(user_id):
         cursor.execute(query_spese, (data_inizio, data_fine, user_id))
         totali_spese = cursor.fetchall()
 
-        # Mesi in italiano
+        # ✅ Mesi in italiano
         mesi_nomi = {
             1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile", 5: "Maggio", 6: "Giugno",
             7: "Luglio", 8: "Agosto", 9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
         }
 
-        # Lista mesi da oggi ai 12 mesi precedenti
+        # ✅ Genera ultimi 12 mesi
         mesi_list = []
         for i in range(12):
-            data = oggi.replace(day=1) - timedelta(days=i * 30)
-            chiave = f"{mesi_nomi[data.month]} {data.year}"
+            mese_corrente = (oggi.replace(day=1) - timedelta(days=i * 30))
+            chiave = f"{mesi_nomi[mese_corrente.month]} {mese_corrente.year}"
             mesi_list.append(chiave)
 
-        # Rimuove duplicati mantenendo l'ordine
-        mesi_list = list(dict.fromkeys(mesi_list))
+        mesi_list = list(dict.fromkeys(mesi_list))  # rimuove duplicati mantenendo l'ordine
 
-        # Inizializza struttura result
+        # ✅ Struttura base
         result = {
             mese: {"entrate": 0.00, "spese": 0.00, "valore": 0.00}
             for mese in mesi_list
         }
 
-        # Riempie entrate
+        # ✅ Inserisci ENTRATE
         for anno, mese, totale_entrate in totali_entrate:
             chiave = f"{mesi_nomi[mese]} {anno}"
             if chiave in result:
-                result[chiave]["entrate"] = round(float(totale_entrate), 2)
-                result[chiave]["valore"] += round(float(totale_entrate), 2)
+                result[chiave]["entrate"] = round(float(totale_entrate or 0), 2)
+                result[chiave]["valore"] += result[chiave]["entrate"]
 
-        # Riempie spese
+        # ✅ Inserisci SPESE
         for anno, mese, totale_spese in totali_spese:
             chiave = f"{mesi_nomi[mese]} {anno}"
             if chiave in result:
-                result[chiave]["spese"] = round(float(totale_spese), 2)
-                result[chiave]["valore"] -= round(float(totale_spese), 2)
+                result[chiave]["spese"] = round(float(totale_spese or 0), 2)
+                result[chiave]["valore"] -= result[chiave]["spese"]
 
-        # Converti in lista di dict
+        # ✅ Lista finale
         result_list = [
             {
                 "mese": mese,
                 "entrate": valori["entrate"],
                 "spese": valori["spese"],
-                "valore": valori["valore"]
+                "valore": valori["valore"],
+                "currency": user_currency
             }
             for mese, valori in result.items()
         ]
 
-        # Ordinamento
-        sort_by = request.args.get("sort_by")  # valore, entrate, spese
-        order = request.args.get("order", "desc")  # asc o desc
+        # ✅ Ordinamento opzionale
+        sort_by = request.args.get("sort_by")
+        order = request.args.get("order", "desc")
 
         if sort_by == "value_asc":
             result_list.sort(key=lambda x: x["valore"])
@@ -102,10 +121,16 @@ def total_balances_by_month(user_id):
             result_list.sort(key=lambda x: x["spese"], reverse=True)
         else:
             if order == "asc":
-                result_list = result_list[::-1]  # mesi più vecchi prima
+                result_list = result_list[::-1]
 
         return jsonify(result_list), 200
 
     except Exception as e:
-        print("Errore durante il recupero dei bilanci mensili:", str(e))
+        print("❌ Errore durante il recupero dei bilanci mensili:", str(e))
         return jsonify({"errore": "Impossibile recuperare i bilanci mensili"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
