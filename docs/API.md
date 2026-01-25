@@ -297,6 +297,7 @@ Authorization: Bearer <token>
   "tipo": "Salary",
   "giorno": "2024-01-01",
   "currency": "USD",
+  "payment_asset_id": 4
   "fields": {
     "descrizione": "Monthly salary"
   }

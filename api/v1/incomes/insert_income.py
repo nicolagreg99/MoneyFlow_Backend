@@ -1,62 +1,113 @@
 import json
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
 from utils.currency_converter import currency_converter
 
 
 def insert_income(user_id):
-    """Inserisce una nuova entrata per l'utente autenticato."""
     conn = None
     cursor = None
 
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+
         valore = data.get("valore")
         tipo = data.get("tipo")
         giorno_str = data.get("giorno")
-        currency = data.get("currency", "").upper()
+        currency = (data.get("currency") or "").upper()
         descrizione = data.get("descrizione") or data.get("description") or ""
+        payment_asset_id = data.get("payment_asset_id")
         fields = data.get("fields", {})
 
-        if not valore or not tipo or not giorno_str:
-            return jsonify({"error": "Valore, tipo e giorno sono obbligatori"}), 400
+        # ---------------- VALIDATION ----------------
+        if not all([valore, tipo, giorno_str, payment_asset_id]):
+            return jsonify({
+                "error": "Valore, tipo, giorno e payment_asset_id sono obbligatori"
+            }), 400
 
-        valore = float(valore)
+        try:
+            valore = Decimal(str(valore))
+        except (InvalidOperation, TypeError):
+            return jsonify({"error": "Formato valore non valido"}), 400
+
+        if valore <= 0:
+            return jsonify({"error": "Il valore deve essere maggiore di zero"}), 400
+
         giorno = datetime.strptime(giorno_str, "%Y-%m-%d").date()
 
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        # Recupera la valuta di default dell'utente
-        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
+        # ---------------- USER DEFAULT CURRENCY ----------------
+        cursor.execute(
+            "SELECT default_currency FROM users WHERE id = %s",
+            (user_id,)
+        )
         row = cursor.fetchone()
         user_currency = row[0] if row and row[0] else "EUR"
 
-        # Se non è stata specificata la currency, usa quella dell'utente
         if not currency:
             currency = user_currency
 
-        # Calcola il tasso di cambio
-        if currency == user_currency:
-            exchange_rate = 1.0
-        else:
-            exchange_rate = currency_converter.get_historical_rate(
-                giorno, currency, user_currency
-            )
+        # ---------------- TARGET ASSET (LOCKED) ----------------
+        cursor.execute("""
+            SELECT id, amount, currency, is_payable
+            FROM assets
+            WHERE id = %s AND user_id = %s
+            FOR UPDATE
+        """, (payment_asset_id, user_id))
 
-        # ✅ Crea un JSON completo per la colonna fields
+        asset = cursor.fetchone()
+        if not asset:
+            return jsonify({"error": "Asset di destinazione non trovato"}), 404
+
+        asset_id, asset_amount, asset_currency, is_payable = asset
+
+        if not is_payable:
+            return jsonify({"error": "Asset non utilizzabile per operazioni"}), 400
+
+        asset_amount = Decimal(str(asset_amount))
+
+        # ---------------- CURRENCY CONVERSION ----------------
+        if currency == asset_currency:
+            converted_amount = valore
+            exchange_rate = Decimal("1.0")
+        else:
+            converted_amount = Decimal(str(
+                currency_converter.convert_amount(
+                    float(valore),
+                    date=giorno,
+                    from_currency=currency,
+                    to_currency=asset_currency
+                )
+            ))
+            exchange_rate = (converted_amount / valore).quantize(Decimal("0.000001"))
+
+        # ---------------- UPDATE ASSET (ADD MONEY) ----------------
+        cursor.execute("""
+            UPDATE assets
+            SET amount = amount + %s,
+                last_updated = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (converted_amount, asset_id))
+
+        # ---------------- FIELDS JSON ----------------
         fields.update({
             "tipo": tipo,
-            "valore": valore,
+            "valore": float(valore),
             "currency": currency,
-            "exchange_rate": exchange_rate,
+            "exchange_rate": float(exchange_rate),
+            "converted_amount": float(converted_amount),
+            "asset_currency": asset_currency,
             "descrizione": descrizione,
+            "payment_asset_id": asset_id,
             "user_id": user_id
         })
 
-        cursor.execute(
-            """
+        # ---------------- INSERT INCOME ----------------
+        cursor.execute("""
             INSERT INTO entrate (
                 valore,
                 tipo,
@@ -64,34 +115,45 @@ def insert_income(user_id):
                 user_id,
                 fields,
                 currency,
-                exchange_rate
+                exchange_rate,
+                payment_asset_id
             )
-            VALUES (%s, %s, %s, %s, %s::json, %s, %s)
+            VALUES (%s, %s, %s, %s, %s::json, %s, %s, %s)
             RETURNING id;
-            """,
-            (valore, tipo, giorno, user_id, json.dumps(fields), currency, exchange_rate)
-        )
+        """, (
+            valore,
+            tipo,
+            giorno,
+            user_id,
+            json.dumps(fields),
+            currency,
+            exchange_rate,
+            asset_id
+        ))
 
-        new_id = cursor.fetchone()[0]
+        income_id = cursor.fetchone()[0]
         conn.commit()
 
         return jsonify({
             "success": True,
-            "message": "Income inserted successfully!",
-            "id": new_id,
-            "valore": valore,
+            "id": income_id,
+            "valore": float(valore),
             "currency": currency,
-            "exchange_rate": exchange_rate,
-            "user_currency": user_currency,
+            "converted_amount": float(converted_amount),
+            "asset_currency": asset_currency,
+            "exchange_rate": float(exchange_rate),
             "giorno": str(giorno),
-            "fields": fields
+            "payment_asset_id": asset_id
         }), 201
 
     except Exception as e:
-        print("❌ Error inserting income:", str(e))
         if conn:
             conn.rollback()
-        return jsonify({"error": "Impossible to insert the income", "details": str(e)}), 500
+        print("❌ Error inserting income:", str(e))
+        return jsonify({
+            "error": "Errore durante l'inserimento dell'entrata",
+            "details": str(e)
+        }), 500
 
     finally:
         if cursor:

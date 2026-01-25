@@ -1,6 +1,7 @@
 import psycopg2
 from config import DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST
 
+
 def migrate():
     conn = psycopg2.connect(
         dbname=DATABASE_NAME,
@@ -10,9 +11,8 @@ def migrate():
     )
     cur = conn.cursor()
 
-
-# -----------------------------------------------------
-# CREATE TABLES
+    # -----------------------------------------------------
+    # CREATE TABLES
     print("Creazione tabelle...")
 
     # USERS
@@ -42,7 +42,8 @@ def migrate():
             inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             fields JSONB,
             user_id INTEGER NOT NULL,
-            CONSTRAINT idx_entrate_user_id FOREIGN KEY(user_id) REFERENCES users(id)
+            CONSTRAINT entrate_user_id_fkey
+                FOREIGN KEY(user_id) REFERENCES users(id)
         );
     """)
 
@@ -59,17 +60,19 @@ def migrate():
         );
     """)
 
-    # USER_CATEGORIES
+    # USER CATEGORIES
     cur.execute("""
         CREATE TABLE IF NOT EXISTS user_categories (
             id SERIAL PRIMARY KEY,
             user_id INTEGER,
             expenses_categories JSONB DEFAULT '[]',
             incomes_categories JSONB DEFAULT '[]',
-            CONSTRAINT user_categories_user_id_fkey FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            CONSTRAINT user_categories_user_id_fkey
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
     """)
 
+    # EXCHANGE RATES CACHE
     print("Creazione tabella cache tassi di cambio...")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS exchange_rates_cache (
@@ -85,34 +88,33 @@ def migrate():
 
     conn.commit()
 
-# -----------------------------------------------------
-# UPDATE COLUMNS
+    # -----------------------------------------------------
+    # UPDATE COLUMNS
+    print("Aggiornamento colonne...")
 
-    # Verify user
-    print("Verifica ed eventuale aggiunta colonne 'verified' e 'verification_token'...")
+    # USERS
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);")
-
-    # EXCHANGE RATES - COLONNE PER SPESE
-    print("Creazione colonne echange rates spese...")
-    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
-    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
-    
-    # EXCHANGE RATES - COLONNE PER ENTRATE
-    print("Creazione colonne echange rates entrate...")
-    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
-    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
-    
-    # VALUTA DEFAULT UTENTE
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS default_currency VARCHAR(3) DEFAULT 'EUR';")
 
-    # AGGIORNA I DATI ESISTENTI
-    print("Aggiornamento dati esistenti...")
-    cur.execute("UPDATE spese SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
-    cur.execute("UPDATE spese SET currency = 'EUR' WHERE currency IS NULL;")
-    cur.execute("UPDATE entrate SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
-    cur.execute("UPDATE entrate SET currency = 'EUR' WHERE currency IS NULL;")
+    # SPESE - currency
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
 
+    # ENTRATE - currency
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR';")
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(12,6) DEFAULT 1.0;")
+
+    # NORMALIZE EXISTING DATA
+    print("Normalizzazione dati esistenti...")
+    cur.execute("UPDATE spese SET currency = 'EUR' WHERE currency IS NULL;")
+    cur.execute("UPDATE spese SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
+    cur.execute("UPDATE entrate SET currency = 'EUR' WHERE currency IS NULL;")
+    cur.execute("UPDATE entrate SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
+
+    conn.commit()
+
+    # -----------------------------------------------------
     # ASSETS
     print("Creazione tabella assets...")
     cur.execute("""
@@ -137,6 +139,7 @@ def migrate():
         );
     """)
 
+    # ASSET TRANSACTIONS
     print("Creazione tabella asset_transactions...")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS asset_transactions (
@@ -161,37 +164,94 @@ def migrate():
                 REFERENCES users(id)
                 ON DELETE CASCADE,
 
-            CONSTRAINT asset_transactions_from_asset_id_fkey
+            CONSTRAINT asset_transactions_from_asset_fkey
                 FOREIGN KEY (from_asset_id)
                 REFERENCES assets(id),
 
-            CONSTRAINT asset_transactions_to_asset_id_fkey
+            CONSTRAINT asset_transactions_to_asset_fkey
                 FOREIGN KEY (to_asset_id)
                 REFERENCES assets(id)
         );
     """)
 
-    print("Update expenses table with asset id...")
+    conn.commit()
+
+    # -----------------------------------------------------
+    # LINK SPESE ↔ ASSETS
+    print("Update spese con payment_asset_id...")
+    cur.execute("ALTER TABLE spese ADD COLUMN IF NOT EXISTS payment_asset_id INTEGER;")
+
     cur.execute("""
-        ALTER TABLE spese
-        ADD COLUMN IF NOT EXISTS payment_asset_id INTEGER;
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'expenses_payment_asset_fkey'
+            ) THEN
+                ALTER TABLE spese
+                ADD CONSTRAINT expenses_payment_asset_fkey
+                FOREIGN KEY (payment_asset_id)
+                REFERENCES assets(id)
+                ON DELETE RESTRICT;
+            END IF;
+        END $$;
+    """)
 
-        ALTER TABLE spese
-        ADD CONSTRAINT expenses_payment_asset_fkey
-        FOREIGN KEY (payment_asset_id)
-        REFERENCES assets(id)
-        ON DELETE RESTRICT;
-                
-        ALTER TABLE spese
-        ADD CONSTRAINT chk_positive_amount
-        CHECK (valore > 0);
-   """)
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'chk_spese_positive_amount'
+            ) THEN
+                ALTER TABLE spese
+                ADD CONSTRAINT chk_spese_positive_amount
+                CHECK (valore > 0);
+            END IF;
+        END $$;
+    """)
 
+    # -----------------------------------------------------
+    # LINK ENTRATE ↔ ASSETS
+    print("Update entrate con payment_asset_id...")
+    cur.execute("ALTER TABLE entrate ADD COLUMN IF NOT EXISTS payment_asset_id INTEGER;")
+
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'incomes_payment_asset_fkey'
+            ) THEN
+                ALTER TABLE entrate
+                ADD CONSTRAINT incomes_payment_asset_fkey
+                FOREIGN KEY (payment_asset_id)
+                REFERENCES assets(id)
+                ON DELETE RESTRICT;
+            END IF;
+        END $$;
+    """)
+
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'chk_entrate_positive_amount'
+            ) THEN
+                ALTER TABLE entrate
+                ADD CONSTRAINT chk_entrate_positive_amount
+                CHECK (valore > 0);
+            END IF;
+        END $$;
+    """)
 
     conn.commit()
+
     cur.close()
     conn.close()
-    print("Migrazione completata.")
+    print("Migration completed!")
+
 
 if __name__ == "__main__":
     migrate()
