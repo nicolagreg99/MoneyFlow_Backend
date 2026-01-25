@@ -129,6 +129,7 @@ Authorization: Bearer <token>
   "tipo": "Food",
   "giorno": "2024-01-15",
   "currency": "USD",
+  "payment_asset_id": 4,
   "fields": {
     "descrizione": "Grocery shopping"
   }
@@ -151,6 +152,31 @@ Authorization: Bearer <token>
   "created_at": "2024-01-15T14:30:00Z"
 }
 ```
+
+### PATCH /edit_expense/{expense_id}
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "valore": 2000.00,
+  "payment_asset_id": 4
+}
+```
+
+# Formula
+
+ΔAsset = +(V_old × R_old) − (V_new × R_new)
+
+Where:
+
+- V  = transaction value
+- R  = exchange rate from transaction currency to asset currency
+- E  = applied amount on asset
 
 #### GET /expenses/list
 
@@ -297,7 +323,7 @@ Authorization: Bearer <token>
   "tipo": "Salary",
   "giorno": "2024-01-01",
   "currency": "USD",
-  "payment_asset_id": 4
+  "payment_asset_id": 4,
   "fields": {
     "descrizione": "Monthly salary"
   }
@@ -320,6 +346,32 @@ Authorization: Bearer <token>
   "created_at": "2024-01-01T10:00:00Z"
 }
 ```
+
+### PATCH /edit_income/{income_id}
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "valore": 2000.00,
+  "payment_asset_id": 4
+}
+```
+
+# Formula
+
+ΔAsset = −(V_old × R_old) + (V_new × R_new)
+
+Where:
+
+- V  = transaction value
+- R  = exchange rate from transaction currency to asset currency
+- E  = applied amount on asset
+
 
 #### GET /incomes/list
 
