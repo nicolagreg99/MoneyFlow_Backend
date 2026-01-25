@@ -113,6 +113,64 @@ def migrate():
     cur.execute("UPDATE entrate SET exchange_rate = 1.0 WHERE exchange_rate IS NULL;")
     cur.execute("UPDATE entrate SET currency = 'EUR' WHERE currency IS NULL;")
 
+    # ASSETS
+    print("Creazione tabella assets...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS assets (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            bank VARCHAR(255) NOT NULL,
+            asset_type VARCHAR(255) NOT NULL,
+            amount NUMERIC NOT NULL,
+            currency VARCHAR(3) NOT NULL,
+            exchange_rate NUMERIC DEFAULT 1.0,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            CONSTRAINT unique_user_bank_asset_currency
+                UNIQUE (user_id, bank, asset_type, currency),
+
+            CONSTRAINT assets_user_id_fkey
+                FOREIGN KEY (user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
+        );
+    """)
+
+    print("Creazione tabella asset_transactions...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS asset_transactions (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+
+            from_asset_id INTEGER,
+            to_asset_id INTEGER,
+
+            amount NUMERIC NOT NULL,
+            converted_amount NUMERIC,
+            from_currency VARCHAR(3) NOT NULL,
+            to_currency VARCHAR(3) NOT NULL,
+
+            transaction_type VARCHAR(50) NOT NULL,
+            exchange_rate NUMERIC(12,6),
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            CONSTRAINT asset_transactions_user_id_fkey
+                FOREIGN KEY (user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE,
+
+            CONSTRAINT asset_transactions_from_asset_id_fkey
+                FOREIGN KEY (from_asset_id)
+                REFERENCES assets(id),
+
+            CONSTRAINT asset_transactions_to_asset_id_fkey
+                FOREIGN KEY (to_asset_id)
+                REFERENCES assets(id)
+        );
+    """)
+
+
     conn.commit()
     cur.close()
     conn.close()

@@ -36,6 +36,12 @@ from api.v1.users.reset_password import bp as reset_password_bp
 from api.v1.balances.total_month_balances import total_balances_by_month
 from api.v1.balances.total_balances import total_balance
 
+from api.v1.assets.edit_asset import edit_asset
+from api.v1.assets.list_assets import list_assets
+from api.v1.assets.total_assets import total_assets
+from api.v1.assets.insert_assets import insert_assets
+from api.v1.assets.transfer_assets import transfer_assets
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -303,8 +309,34 @@ def list_categories_expenses_api(user_id):
 def total_balance_api():
     return total_balance()
 
-# Total balances group by month
-@app.route('/api/v1/balances/total_by_month', methods=['GET'])
+
+# ASSETS ----------------------------------------------------------
+
+# Insert asset
+@app.route('/api/v1/assets/insert', methods=['POST'])
 @token_required
-def total_balances_by_month_api(user_id):
-    return total_balances_by_month(user_id)
+def insert_asset_api(user_id):
+    return insert_assets(user_id)
+
+# List assets
+@app.route('/api/v1/assets/list', methods=['GET'])
+@token_required
+def list_assets_api(user_id):
+    return list_assets(user_id)
+
+@app.route("/api/v1/assets/total", methods=["GET"])
+@token_required
+def total_assets_api(user_id):
+    return total_assets(user_id)
+
+# Edit asset
+@app.route('/api/v1/assets/edit_asset/<int:id_asset>', methods=['PATCH'])
+@token_required
+def edit_asset_api(user_id, id_asset):
+    return edit_asset(user_id, id_asset)
+
+# Transfer money assets
+@app.route('/api/v1/assets/transfer', methods=['POST'])
+@token_required
+def transfer_asset_api(user_id):
+    return transfer_assets(user_id)
