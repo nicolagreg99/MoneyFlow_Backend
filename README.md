@@ -2,10 +2,14 @@
 
 ## Overview
 
-MoneyFlow Backend is a RESTful API service built with Flask that provides comprehensive financial management capabilities. The application enables users to track expenses and incomes across multiple currencies with real-time conversion rates, detailed financial analytics and reporting.
+MoneyFlow Backend is a RESTful API built with Flask for personal finance and asset management.
+It allows users to track liquidity, investments, and portfolios across multiple banks and currencies, with full transaction history and real-time currency conversion.
+
+The system now supports asset-based wealth tracking in addition to classic expenses and incomes.
 
 ## Key Features
 
+- **Multi-Bank Asset Management**
 - **Multi-Currency Support**: Handle transactions in multiple currencies with automatic conversion
 - **Real-time Exchange Rates**: Live currency conversion using up-to-date exchange rates
 - **Expense and Income Management**: Create, read, update, and delete expense records with categorization

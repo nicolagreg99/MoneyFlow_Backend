@@ -468,6 +468,151 @@ Authorization: Bearer <token>
   "to_date": "2024-03-31"
 }
 ```
+---
+
+### Assets
+
+Assets represent the user’s wealth distribution across banks, asset types, and currencies.
+All amounts are automatically converted to the user’s preferred currency when aggregated.
+
+---
+
+#### POST /assets/insert
+
+Create a new asset entry.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "bank": "Revolut",
+  "asset_type": "LIQUIDITY",
+  "currency": "EUR",
+  "amount": 1000
+}
+```
+**Response (201 Created):**
+```json
+{
+  "message": "Asset added successfully."
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Invalid asset data"
+}
+```
+
+#### GET /assets/list
+
+List all assets for the authenticated user.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+[
+  {
+    "id": 1,
+    "bank": "Revolut",
+    "asset_type": "LIQUIDITY",
+    "currency": "EUR",
+    "amount": "1000",
+    "exchange_rate": "1.0",
+    "last_updated": "2026-01-25T09:47:20Z"
+  },
+  {
+    "id": 2,
+    "bank": "Revolut",
+    "asset_type": "ETF",
+    "currency": "EUR",
+    "amount": "2800",
+    "exchange_rate": "1.0",
+    "last_updated": "2026-01-25T10:03:04Z"
+  }
+]
+}
+```
+
+#### GET /assets/total
+
+Total assets
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `asset_type` (optional): Filter by asset type
+- `group_by` (optional): Aggregate results by bank or asset_type
+
+**Response:**
+```json
+{
+  "total": 8021.69,
+  "currency": "EUR"
+}
+```
+
+**Response (group by):**
+```json
+{
+  "currency": "EUR",
+  "group_by": "asset_type",
+  "results": [
+    {
+      "asset_type": "LIQUIDITY",
+      "total": 1507.23
+    },
+    {
+      "asset_type": "STOCK",
+      "total": 1014.46
+    }
+  ]
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---
 
