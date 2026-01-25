@@ -118,13 +118,14 @@ def migrate():
     cur.execute("""
         CREATE TABLE IF NOT EXISTS assets (
             id SERIAL PRIMARY KEY,
-            user_id BIGINT,
+            user_id BIGINT NOT NULL,
             bank VARCHAR(255) NOT NULL,
             asset_type VARCHAR(255) NOT NULL,
             amount NUMERIC NOT NULL,
             currency VARCHAR(3) NOT NULL,
             exchange_rate NUMERIC DEFAULT 1.0,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_payable BOOLEAN NOT NULL DEFAULT FALSE,
+            last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
             CONSTRAINT unique_user_bank_asset_currency
                 UNIQUE (user_id, bank, asset_type, currency),
@@ -169,6 +170,22 @@ def migrate():
                 REFERENCES assets(id)
         );
     """)
+
+    print("Update expenses table with asset id...")
+    cur.execute("""
+        ALTER TABLE spese
+        ADD COLUMN IF NOT EXISTS payment_asset_id INTEGER;
+
+        ALTER TABLE spese
+        ADD CONSTRAINT expenses_payment_asset_fkey
+        FOREIGN KEY (payment_asset_id)
+        REFERENCES assets(id)
+        ON DELETE RESTRICT;
+                
+        ALTER TABLE spese
+        ADD CONSTRAINT chk_positive_amount
+        CHECK (valore > 0);
+   """)
 
 
     conn.commit()

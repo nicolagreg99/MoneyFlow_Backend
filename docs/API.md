@@ -492,7 +492,8 @@ Authorization: Bearer <token>
   "bank": "Revolut",
   "asset_type": "LIQUIDITY",
   "currency": "EUR",
-  "amount": 1000
+  "amount": 1000,
+  "is_payable": false
 }
 ```
 **Response (201 Created):**
@@ -517,6 +518,10 @@ List all assets for the authenticated user.
 ```
 Authorization: Bearer <token>
 ```
+
+**Query Parameters:**
+- `is_payable` (optional): If `true` returns only payable assets (No stocks, ETF ecc.)
+
 
 **Response:**
 ```json
