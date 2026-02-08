@@ -37,10 +37,12 @@ from api.v1.balances.total_month_balances import total_balances_by_month
 from api.v1.balances.total_balances import total_balance
 
 from api.v1.assets.edit_asset import edit_asset
+from api.v1.assets.delete_asset import delete_asset
 from api.v1.assets.list_assets import list_assets
 from api.v1.assets.total_assets import total_assets
 from api.v1.assets.insert_assets import insert_assets
 from api.v1.assets.transfer_assets import transfer_assets
+from api.v1.assets.history_asset import history_asset
 
 
 app = Flask(__name__)
@@ -225,7 +227,7 @@ def total_incomes_by_month_api(user_id):
 @app.route('/api/v1/incomes/<int:id_entrata>', methods=['DELETE'])
 @token_required
 def delete_income_api(user_id, id_entrata):
-    return delete_income(id_entrata)
+    return delete_income(id_entrata, user_id)
 
 # Edit income
 @app.route("/api/v1/edit_income/<int:id_entrata>", methods=["PATCH"])
@@ -258,7 +260,7 @@ def insert_expense_api(user_id):
 @app.route('/api/v1/expenses/<int:id_spesa>', methods=['DELETE'])
 @token_required
 def delete_expense_api(user_id, id_spesa):
-    return delete_expense(id_spesa)
+    return delete_expense(id_spesa, user_id)
 
 # Edit expense
 @app.route("/api/v1/edit_expense/<int:id_spesa>", methods=["PATCH"])
@@ -309,6 +311,10 @@ def list_categories_expenses_api(user_id):
 def total_balance_api():
     return total_balance()
 
+@app.route('/api/v1/balances/total_by_month', methods=['GET'])
+@token_required
+def total_balances_by_month_api(user_id):
+    return total_balances_by_month(user_id)
 
 # ASSETS ----------------------------------------------------------
 
@@ -334,6 +340,18 @@ def total_assets_api(user_id):
 @token_required
 def edit_asset_api(user_id, id_asset):
     return edit_asset(user_id, id_asset)
+
+# Delete asset
+@app.route('/api/v1/assets/delete_asset/<int:id_asset>', methods=['DELETE'])
+@token_required
+def delete_asset_api(user_id, id_asset):
+    return delete_asset(user_id, id_asset)
+
+# History asset
+@app.route('/api/v1/assets/history/<int:id_asset>', methods=['GET'])
+@token_required
+def history_asset_api(user_id, id_asset):
+    return history_asset(user_id, id_asset)
 
 # Transfer money assets
 @app.route('/api/v1/assets/transfer', methods=['POST'])

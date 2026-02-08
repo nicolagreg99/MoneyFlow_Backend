@@ -45,7 +45,7 @@ def expenses_list(user_id):
         user_currency = user_currency_result[0] if user_currency_result and user_currency_result[0] else "EUR"
         logger.info(f"Valuta utente = {user_currency}")
 
-        # Costruzione query
+        # Costruzione query - AGGIUNTO payment_asset_id
         query = """
             SELECT 
                 id,
@@ -56,7 +56,8 @@ def expenses_list(user_id):
                 user_id,
                 currency,
                 exchange_rate,
-                fields ->> 'descrizione' AS descrizione
+                fields ->> 'descrizione' AS descrizione,
+                payment_asset_id
             FROM spese
             WHERE giorno >= %s 
               AND giorno < %s 
@@ -97,7 +98,7 @@ def expenses_list(user_id):
                 giorno = spesa[3]
 
                 logger.debug(f"Riga DB → id={spesa[0]}, tipo={spesa[2]}, valore={valore_originale}, "
-                             f"currency={currency_spesa}, giorno={giorno}")
+                             f"currency={currency_spesa}, giorno={giorno}, payment_asset_id={spesa[9]}")
 
                 if currency_spesa == user_currency:
                     valore_convertito = valore_originale
@@ -130,7 +131,8 @@ def expenses_list(user_id):
                     "currency": currency_spesa,
                     "exchange_rate": exchange_rate,
                     "descrizione": spesa[8] if spesa[8] else "",
-                    "user_currency": user_currency
+                    "user_currency": user_currency,
+                    "payment_asset_id": spesa[9] if spesa[9] else None
                 })
 
         logger.info(f"Totale spese elaborate: {len(spese_json)}")

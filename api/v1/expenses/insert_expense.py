@@ -105,8 +105,14 @@ def insert_expense(user_id):
         """, (paid_amount, asset_id))
 
         # ---------------- FIELDS JSON ----------------
+        # Costruisci fields con tutte le info come prima
         fields.update({
-            "descrizione": descrizione
+            "tipo": tipo,
+            "valore": float(valore),
+            "currency": currency,
+            "exchange_rate": float(exchange_rate),
+            "descrizione": descrizione,
+            "user_id": user_id
         })
 
         # ---------------- INSERT EXPENSE ----------------

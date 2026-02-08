@@ -4,6 +4,8 @@ from database.connection import connect_to_database, create_cursor
 
 def list_assets(user_id):
     is_payable_param = request.args.get("is_payable")
+    sort_by = request.args.get("sort_by", "amount")  # Default: amount
+    order = request.args.get("order", "desc")  # Default: desc
 
     filters = ["user_id = %s"]
     params = [user_id]
@@ -19,6 +21,41 @@ def list_assets(user_id):
         filters.append("is_payable = %s")
         params.append(is_payable)
 
+    # ---------------- SORTING VALIDATION ----------------
+    valid_sort_fields = {
+        "amount": "amount",
+        "currency": "currency",
+        "bank": "bank",
+        "asset_type": "asset_type",
+        "last_updated": "last_updated"
+    }
+
+    if sort_by not in valid_sort_fields:
+        return jsonify({
+            "message": f"Invalid sort_by parameter. Valid options: {', '.join(valid_sort_fields.keys())}"
+        }), 400
+
+    if order.lower() not in ("asc", "desc"):
+        return jsonify({
+            "message": "order must be 'asc' or 'desc'."
+        }), 400
+
+    # Build ORDER BY clause
+    order_direction = order.upper()
+    sort_field = valid_sort_fields[sort_by]
+    
+    # For amount sorting, we want to sort by the converted value in EUR
+    if sort_by == "amount":
+        order_by_clause = f"(amount * exchange_rate) {order_direction}"
+    else:
+        order_by_clause = f"{sort_field} {order_direction}"
+    
+    # Add secondary sorting for better UX
+    if sort_by != "bank":
+        order_by_clause += ", bank ASC"
+    if sort_by not in ("bank", "asset_type"):
+        order_by_clause += ", asset_type ASC"
+
     where_clause = " AND ".join(filters)
 
     conn = None
@@ -28,7 +65,7 @@ def list_assets(user_id):
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
-        cursor.execute(f"""
+        query = f"""
             SELECT
                 id,
                 bank,
@@ -40,8 +77,10 @@ def list_assets(user_id):
                 last_updated
             FROM assets
             WHERE {where_clause}
-            ORDER BY bank, asset_type, currency
-        """, tuple(params))
+            ORDER BY {order_by_clause}
+        """
+
+        cursor.execute(query, tuple(params))
 
         assets = cursor.fetchall()
 
@@ -51,14 +90,19 @@ def list_assets(user_id):
                 "id": asset[0],
                 "bank": asset[1],
                 "asset_type": asset[2],
-                "amount": asset[3],
+                "amount": float(asset[3]),
                 "currency": asset[4],
-                "exchange_rate": asset[5],
+                "exchange_rate": float(asset[5]) if asset[5] else 1.0,
                 "is_payable": asset[6],
-                "last_updated": asset[7]
+                "last_updated": asset[7].isoformat() if asset[7] else None
             })
 
-        return jsonify(assets_list), 200
+        return jsonify({
+            "assets": assets_list,
+            "total_count": len(assets_list),
+            "sort_by": sort_by,
+            "order": order
+        }), 200
 
     except Exception as e:
         return jsonify({

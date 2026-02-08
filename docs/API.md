@@ -563,6 +563,20 @@ Authorization: Bearer <token>
 }
 ```
 
+### PATCH /edit_asset/{asset_id}
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "amount": 2000.00,
+}
+```
+
 #### GET /assets/list
 
 List all assets for the authenticated user.
@@ -641,36 +655,58 @@ Authorization: Bearer <token>
 }
 ```
 
+#### GET /assets/history/{id_asset}
 
+Get transaction history for a specific asset.
 
+**Headers:**
+```
+Authorization: Bearer <token>
+```
 
+**Query Parameters:**
+- `limit` (optional): Maximum number of transactions to return (default: 50, max: 500)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+**Response:**
+```json
+{
+  "asset": {
+    "id": 1,
+    "bank": "Intesa",
+    "asset_type": "LIQUIDITY",
+    "currency": "EUR"
+  },
+  "transactions": [
+    {
+      "id": 5,
+      "transaction_type": "TRANSFER",
+      "flow_type": "OUTFLOW",
+      "amount": 500.0,
+      "converted_amount": 540.0,
+      "from_currency": "EUR",
+      "to_currency": "USD",
+      "exchange_rate": 1.08,
+      "transaction_date": "2025-02-08T10:30:00",
+      "from": {
+        "bank": "Intesa",
+        "asset_type": "LIQUIDITY",
+        "currency": "EUR"
+      },
+      "to": {
+        "bank": "BankOfAmerica",
+        "asset_type": "LIQUIDITY",
+        "currency": "USD"
+      }
+    }
+  ],
+  "total_count": 1,
+  "summary": {
+    "total_inflow": 0.0,
+    "total_outflow": 500.0,
+    "net_flow": -500.0
+  }
+}
+```
 
 ---
 
