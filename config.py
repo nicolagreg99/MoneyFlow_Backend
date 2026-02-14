@@ -15,7 +15,7 @@ DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
 SMTP_USER = os.getenv("SMTP_USER", "default_smtp_user")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "default_smtp_password")
 
-APP_BASE_URL = "http://192.168.1.10:5000"
+APP_BASE_URL = "https://backend.money-app-api.com"
 
 # --- Configurazione API cambio valuta ---
 EXCHANGE_API_URL = "https://openexchangerates.org/api"

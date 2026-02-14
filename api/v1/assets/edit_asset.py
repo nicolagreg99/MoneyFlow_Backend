@@ -6,13 +6,14 @@ def edit_asset(user_id, id_asset):
     data = request.json or {}
 
     amount = data.get("amount")
+    bank = data.get("bank")
     asset_type = data.get("asset_type")
     is_payable = data.get("is_payable")
 
     # ---------------- NOTHING TO UPDATE ----------------
-    if amount is None and asset_type is None and is_payable is None:
+    if amount is None and bank is None and asset_type is None and is_payable is None:
         return jsonify({
-            "message": "At least one field must be provided (amount, asset_type, is_payable)."
+            "message": "At least one field must be provided (amount, bank, asset_type, is_payable)."
         }), 400
 
     fields = []
@@ -30,6 +31,14 @@ def edit_asset(user_id, id_asset):
 
         fields.append("amount = %s")
         params.append(amount)
+
+    if bank is not None:
+        bank = bank.strip()
+        if not bank:
+            return jsonify({"message": "Bank name cannot be empty."}), 400
+
+        fields.append("bank = %s")
+        params.append(bank)
 
     if asset_type is not None:
         fields.append("asset_type = %s")
