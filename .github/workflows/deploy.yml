@@ -22,10 +22,16 @@ jobs:
       run: |
         set -e
         cd /home/nicola/app-money/app
-        python3 -m venv .venv || true
-        source .venv/bin/activate 
-        pip install --upgrade pip
-        pip install -r requirements.txt
+        
+        if [ ! -d ".venv" ]; then
+          python3 -m venv .venv
+        fi
+        
+        source .venv/bin/activate
+        
+        pip install --upgrade pip setuptools wheel
+        
+        pip install --prefer-binary -r requirements.txt
         
         sudo systemctl restart moneyflow.service
-        echo "Deployment completed and service restarted."
+        echo "Deployment completato e servizio riavviato con successo!"
