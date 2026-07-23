@@ -3,45 +3,29 @@ name: Deploy to Server
 on:
   push:
     tags:
-      - 'v*'  # Trigger su tag tipo v1.0.0
+      - 'v*'
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup SSH Agent
-      uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: ${{ secrets.DEPLOY_KEY }}
-
-    - name: Add server to known_hosts
-      run: |
-        mkdir -p ~/.ssh
-        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-
-    - name: Test SSH connection
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "echo ✅ Connected as \$(whoami)"
-
     - name: Sync project files to /home/nicola/app-money/app
       run: |
-        rsync -az --delete --exclude '.git' \
-          -e "ssh -o StrictHostKeyChecking=no" \
-          ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:/home/nicola/app-money/app/
+        mkdir -p /home/nicola/app-money/app
+        rsync -az --delete --exclude '.git' ./ /home/nicola/app-money/app/
 
     - name: Setup environment and restart service
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          set -e
-          cd /home/nicola/app-money/app
-          python3 -m venv venv || true
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          sudo systemctl restart moneyflow.service
-          echo "✅ Deployment completed and service restarted."
-        EOF
+        set -e
+        cd /home/nicola/app-money/app
+        python3 -m venv .venv || true
+        source .venv/bin/activate 
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        
+        sudo systemctl restart moneyflow.service
+        echo "Deployment completed and service restarted."
