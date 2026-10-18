@@ -1,5 +1,7 @@
+from datetime import date
 from flask import jsonify, request
 from database.connection import connect_to_database, create_cursor
+from utils.currency_converter import currency_converter
 
 
 def list_assets(user_id):
@@ -40,21 +42,19 @@ def list_assets(user_id):
             "message": "order must be 'asc' or 'desc'."
         }), 400
 
-    # Build ORDER BY clause
     order_direction = order.upper()
-    sort_field = valid_sort_fields[sort_by]
-    
-    # For amount sorting, we want to sort by the converted value in EUR
+    descending = order.lower() == "desc"
+
+    # Sorting by amount is done in Python on the converted value (see below),
+    # because it needs live exchange rates. SQL handles every other field.
     if sort_by == "amount":
-        order_by_clause = f"(amount * exchange_rate) {order_direction}"
+        order_by_clause = "bank ASC, asset_type ASC"
     else:
-        order_by_clause = f"{sort_field} {order_direction}"
-    
-    # Add secondary sorting for better UX
-    if sort_by != "bank":
-        order_by_clause += ", bank ASC"
-    if sort_by not in ("bank", "asset_type"):
-        order_by_clause += ", asset_type ASC"
+        order_by_clause = f"{valid_sort_fields[sort_by]} {order_direction}"
+        if sort_by != "bank":
+            order_by_clause += ", bank ASC"
+        if sort_by not in ("bank", "asset_type"):
+            order_by_clause += ", asset_type ASC"
 
     where_clause = " AND ".join(filters)
 
@@ -65,6 +65,15 @@ def list_assets(user_id):
         conn = connect_to_database()
         cursor = create_cursor(conn)
 
+        # ---------------- USER CURRENCY ----------------
+        cursor.execute(
+            "SELECT default_currency FROM users WHERE id = %s",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        user_currency = row[0] if row and row[0] else "EUR"
+
+        # ---------------- ASSETS ----------------
         query = f"""
             SELECT
                 id,
@@ -81,27 +90,61 @@ def list_assets(user_id):
         """
 
         cursor.execute(query, tuple(params))
-
         assets = cursor.fetchall()
+
+        # ---------------- RATES TO USER CURRENCY (one lookup per currency) ----------------
+        today = date.today()
+        rates = {}
+
+        def rate_to_user_currency(from_currency, stored_rate):
+            if from_currency == user_currency:
+                return 1.0
+            if from_currency in rates:
+                return rates[from_currency]
+            try:
+                rate = float(currency_converter.convert_amount(
+                    1.0,
+                    date=today,
+                    from_currency=from_currency,
+                    to_currency=user_currency
+                ))
+            except Exception as conv_error:
+                print(f"[LIST ASSETS] Rate lookup failed for {from_currency}->{user_currency}: {conv_error}")
+                # Fallback: stored rate on the asset, otherwise 1
+                rate = float(stored_rate) if stored_rate else 1.0
+            rates[from_currency] = rate
+            return rate
 
         assets_list = []
         for asset in assets:
+            amount = float(asset[3])
+            rate = rate_to_user_currency(asset[4], asset[5])
             assets_list.append({
                 "id": asset[0],
                 "bank": asset[1],
                 "asset_type": asset[2],
-                "amount": float(asset[3]),
+                "amount": amount,
                 "currency": asset[4],
-                "exchange_rate": float(asset[5]) if asset[5] else 1.0,
+                "exchange_rate": rate,
+                "amount_in_user_currency": round(amount * rate, 2),
+                "user_currency": user_currency,
                 "is_payable": asset[6],
                 "last_updated": asset[7].isoformat() if asset[7] else None
             })
+
+        # ---------------- SORT BY CONVERTED AMOUNT ----------------
+        if sort_by == "amount":
+            # Stable multi-pass sort: asset_type, then bank, then converted amount
+            assets_list.sort(key=lambda a: a["asset_type"] or "")
+            assets_list.sort(key=lambda a: (a["bank"] or "").lower())
+            assets_list.sort(key=lambda a: a["amount_in_user_currency"], reverse=descending)
 
         return jsonify({
             "assets": assets_list,
             "total_count": len(assets_list),
             "sort_by": sort_by,
-            "order": order
+            "order": order,
+            "user_currency": user_currency
         }), 200
 
     except Exception as e:
