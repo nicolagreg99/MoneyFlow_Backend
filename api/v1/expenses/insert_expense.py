@@ -76,9 +76,9 @@ def insert_expense(user_id):
             return jsonify({"error": "Questo asset non è utilizzabile per pagamenti"}), 400
 
         # ---------------- CURRENCY CONVERSION ----------------
+        # 1) Importo da scalare dall'asset (espresso nella valuta dell'asset)
         if currency == asset_currency:
             paid_amount = valore
-            exchange_rate = Decimal("1.0")
         else:
             paid_amount = Decimal(str(
                 currency_converter.convert_amount(
@@ -88,7 +88,20 @@ def insert_expense(user_id):
                     to_currency=asset_currency
                 )
             ))
-            exchange_rate = (paid_amount / valore).quantize(Decimal("0.000001"))
+
+        # 2) Tasso verso la valuta dell'utente (usato da bilanci e statistiche)
+        if currency == user_currency:
+            exchange_rate = Decimal("1.0")
+        else:
+            converted_to_user = Decimal(str(
+                currency_converter.convert_amount(
+                    float(valore),
+                    date=giorno,
+                    from_currency=currency,
+                    to_currency=user_currency
+                )
+            ))
+            exchange_rate = (converted_to_user / valore).quantize(Decimal("0.00000001"))
 
         # ---------------- FUNDS CHECK ----------------
         if asset_amount < paid_amount:
@@ -105,7 +118,6 @@ def insert_expense(user_id):
         """, (paid_amount, asset_id))
 
         # ---------------- FIELDS JSON ----------------
-        # Costruisci fields con tutte le info come prima
         fields.update({
             "tipo": tipo,
             "valore": float(valore),
@@ -150,6 +162,7 @@ def insert_expense(user_id):
             "tipo": tipo,
             "valore": float(valore),
             "currency": currency,
+            "exchange_rate": float(exchange_rate),
             "paid_amount": float(paid_amount),
             "paid_currency": asset_currency,
             "payment_asset_id": asset_id,

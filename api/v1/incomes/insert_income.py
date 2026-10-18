@@ -35,7 +35,10 @@ def insert_income(user_id):
         if valore <= 0:
             return jsonify({"error": "Il valore deve essere maggiore di zero"}), 400
 
-        giorno = datetime.strptime(giorno_str, "%Y-%m-%d").date()
+        try:
+            giorno = datetime.strptime(giorno_str, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Formato data non valido (YYYY-MM-DD)"}), 400
 
         conn = connect_to_database()
         cursor = create_cursor(conn)
@@ -71,9 +74,9 @@ def insert_income(user_id):
         asset_amount = Decimal(str(asset_amount))
 
         # ---------------- CURRENCY CONVERSION ----------------
+        # 1) Importo da accreditare sull'asset (espresso nella valuta dell'asset)
         if currency == asset_currency:
             converted_amount = valore
-            exchange_rate = Decimal("1.0")
         else:
             converted_amount = Decimal(str(
                 currency_converter.convert_amount(
@@ -83,7 +86,20 @@ def insert_income(user_id):
                     to_currency=asset_currency
                 )
             ))
-            exchange_rate = (converted_amount / valore).quantize(Decimal("0.000001"))
+
+        # 2) Tasso verso la valuta dell'utente (usato da bilanci e statistiche)
+        if currency == user_currency:
+            exchange_rate = Decimal("1.0")
+        else:
+            converted_to_user = Decimal(str(
+                currency_converter.convert_amount(
+                    float(valore),
+                    date=giorno,
+                    from_currency=currency,
+                    to_currency=user_currency
+                )
+            ))
+            exchange_rate = (converted_to_user / valore).quantize(Decimal("0.00000001"))
 
         # ---------------- UPDATE ASSET (ADD MONEY) ----------------
         cursor.execute("""
