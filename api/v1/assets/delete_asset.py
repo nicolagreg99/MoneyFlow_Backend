@@ -46,6 +46,16 @@ def delete_asset(user_id, id_asset):
         linked_spese = cursor.fetchall()
         print(f"[DELETE ASSET] Found {len(linked_spese)} linked spese: {linked_spese}")
 
+        # Check linked entrate
+        check_entrate_query = """
+            SELECT id, payment_asset_id
+            FROM entrate
+            WHERE payment_asset_id = %s
+        """
+        cursor.execute(check_entrate_query, (id_asset,))
+        linked_entrate = cursor.fetchall()
+        print(f"[DELETE ASSET] Found {len(linked_entrate)} linked entrate: {linked_entrate}")
+
         # Delete related transactions
         delete_transactions_query = """
             DELETE FROM asset_transactions
@@ -63,6 +73,15 @@ def delete_asset(user_id, id_asset):
         cursor.execute(nullify_spese_query, (id_asset, user_id))
         print(f"[DELETE ASSET] Nullified payment_asset_id in {cursor.rowcount} spese row(s)")
 
+        # Nullify payment_asset_id in entrate
+        nullify_entrate_query = """
+            UPDATE entrate
+            SET payment_asset_id = NULL
+            WHERE payment_asset_id = %s AND user_id = %s
+        """
+        cursor.execute(nullify_entrate_query, (id_asset, user_id))
+        print(f"[DELETE ASSET] Nullified payment_asset_id in {cursor.rowcount} entrate row(s)")
+
         # Delete the asset
         delete_query = """
             DELETE FROM assets
@@ -73,6 +92,7 @@ def delete_asset(user_id, id_asset):
 
         if cursor.rowcount == 0:
             print(f"[DELETE ASSET] ERROR: Asset deletion returned 0 rows affected")
+            conn.rollback()
             return jsonify({"message": "Failed to delete asset."}), 500
 
         conn.commit()
