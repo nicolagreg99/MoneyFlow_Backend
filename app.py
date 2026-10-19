@@ -308,6 +308,7 @@ def list_categories_expenses_api(user_id):
 
 # Total balances
 @app.route('/api/v1/balances/total', methods=['GET'])
+@token_required
 def total_balance_api():
     return total_balance()
 

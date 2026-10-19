@@ -1,127 +1,170 @@
-from flask import jsonify, request
-from database.connection import connect_to_database, create_cursor
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
+import logging
+from datetime import date
 
+from flask import request, jsonify
+
+from database.connection import connect_to_database, create_cursor
+from utils.users import get_user_currency
+
+logger = logging.getLogger(__name__)
+
+MAX_MONTHS = 120      # limite di sicurezza (10 anni)
+DEFAULT_MONTHS = 12
+
+
+# ---------------------------------------------------------------
+# Utilità sulle date
+# ---------------------------------------------------------------
+
+def _parse_ym(value):
+    """'2025-03' -> date(2025, 3, 1)"""
+    y, m = value.split('-')
+    return date(int(y), int(m), 1)
+
+
+def _add_months(d, n):
+    """Aggiunge n mesi (anche negativi) a una data al primo del mese."""
+    idx = d.year * 12 + (d.month - 1) + n
+    return date(idx // 12, idx % 12 + 1, 1)
+
+
+def resolve_range():
+    """
+    Ritorna (start, end_esclusivo) come date al primo del mese.
+
+    Priorità:
+      1. ?start=YYYY-MM&end=YYYY-MM  (intervallo personalizzato)
+      2. ?months=N                   (ultimi N mesi, mese corrente incluso)
+      3. default: 12 mesi
+    """
+    start_p = request.args.get('start')
+    end_p = request.args.get('end')
+
+    if start_p or end_p:
+        if not (start_p and end_p):
+            raise ValueError("Specificare sia 'start' che 'end'")
+        start = _parse_ym(start_p)
+        end = _add_months(_parse_ym(end_p), 1)  # fine esclusiva
+    else:
+        months = int(request.args.get('months', DEFAULT_MONTHS))
+        if months < 1:
+            raise ValueError("'months' deve essere >= 1")
+        end = _add_months(date.today().replace(day=1), 1)
+        start = _add_months(end, -months)
+
+    if start >= end:
+        raise ValueError("'start' deve precedere 'end'")
+    if (end.year - start.year) * 12 + (end.month - start.month) > MAX_MONTHS:
+        raise ValueError(f"Intervallo massimo: {MAX_MONTHS} mesi")
+    return start, end
+
+
+# ---------------------------------------------------------------
+# Query
+# ---------------------------------------------------------------
+
+# NB: si assume che valore * exchange_rate = importo nella valuta di
+# default dell'utente (exchange_rate NULL => già in quella valuta).
+# Se la semantica è inversa, sostituire con valore / exchange_rate.
+
+SQL_MONTHLY = """
+WITH months AS (
+    SELECT generate_series(%(start)s::date,
+                           %(end)s::date - interval '1 month',
+                           interval '1 month')::date AS m
+),
+inc AS (
+    SELECT date_trunc('month', giorno)::date AS m,
+           SUM(valore * COALESCE(exchange_rate, 1)) AS total
+    FROM entrate
+    WHERE user_id = %(uid)s AND giorno >= %(start)s AND giorno < %(end)s
+    GROUP BY 1
+),
+exp AS (
+    SELECT date_trunc('month', giorno)::date AS m,
+           SUM(valore * COALESCE(exchange_rate, 1)) AS total
+    FROM spese
+    WHERE user_id = %(uid)s AND giorno >= %(start)s AND giorno < %(end)s
+    GROUP BY 1
+)
+SELECT to_char(months.m, 'YYYY-MM') AS month,
+       COALESCE(inc.total, 0)       AS income,
+       COALESCE(exp.total, 0)       AS expense
+FROM months
+LEFT JOIN inc ON inc.m = months.m
+LEFT JOIN exp ON exp.m = months.m
+ORDER BY months.m;
+"""
+
+SQL_OPENING = """
+SELECT
+  COALESCE((SELECT SUM(valore * COALESCE(exchange_rate, 1))
+            FROM entrate
+            WHERE user_id = %(uid)s AND giorno < %(start)s), 0)
+  -
+  COALESCE((SELECT SUM(valore * COALESCE(exchange_rate, 1))
+            FROM spese
+            WHERE user_id = %(uid)s AND giorno < %(start)s), 0);
+"""
+
+
+# ---------------------------------------------------------------
+# Endpoint handler
+# ---------------------------------------------------------------
 
 def total_balances_by_month(user_id):
+    logger.warning("NUOVO handler total_balances_by_month chiamato")    
     try:
-        print("=== total_balances_by_month START ===")
-        oggi = datetime.today()
-        print("oggi:", oggi)
+        start, end = resolve_range()
+    except (ValueError, TypeError) as e:
+        return jsonify({"success": False, "message": str(e)}), 400
 
-        data_inizio = (oggi - timedelta(days=365)).replace(day=1)
-        data_fine = (oggi + timedelta(days=31)).replace(day=1)
+    params = {"uid": user_id, "start": start, "end": end}
 
-        print("data_inizio:", data_inizio)
-        print("data_fine:", data_fine)
-
+    conn = None
+    cur = None
+    try:
         conn = connect_to_database()
-        cursor = create_cursor(conn)
+        cur = create_cursor(conn)
 
-        cursor.execute("SELECT default_currency FROM users WHERE id = %s", (user_id,))
-        row = cursor.fetchone()
-        user_currency = row[0] if row and row[0] else "EUR"
-        print("user_currency:", user_currency)
+        cur.execute(SQL_MONTHLY, params)
+        rows = cur.fetchall()
 
-        print("Eseguo query entrate...")
-        cursor.execute("""
-            SELECT 
-                CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
-                CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
-                SUM(
-                    valore * 
-                    CASE 
-                        WHEN exchange_rate IS NOT NULL THEN exchange_rate 
-                        ELSE 1 
-                    END
-                ) AS totale_entrate
-            FROM entrate
-            WHERE giorno >= %s AND giorno < %s AND user_id = %s
-            GROUP BY anno, mese
-            ORDER BY anno, mese;
-        """, (data_inizio, data_fine, user_id))
-
-        totali_entrate = cursor.fetchall()
-        print("totali_entrate:", totali_entrate)
-
-        print("Eseguo query spese...")
-        cursor.execute("""
-            SELECT 
-                CAST(EXTRACT(YEAR FROM giorno) AS INTEGER) AS anno,
-                CAST(EXTRACT(MONTH FROM giorno) AS INTEGER) AS mese,
-                SUM(
-                    valore * 
-                    CASE 
-                        WHEN exchange_rate IS NOT NULL THEN exchange_rate 
-                        ELSE 1 
-                    END
-                ) AS totale_spese
-            FROM spese
-            WHERE giorno >= %s AND giorno < %s AND user_id = %s
-            GROUP BY anno, mese
-            ORDER BY anno, mese;
-        """, (data_inizio, data_fine, user_id))
-
-        totali_spese = cursor.fetchall()
-        print("totali_spese:", totali_spese)
-
-        # === GENERA TUTTI I MESI YYYY-MM ===
-        mesi_list = []
-        start_month = oggi.replace(day=1)
-
-        print("Generazione mesi YYYY-MM...")
-        for i in range(12):
-            mese_corrente = start_month - relativedelta(months=i)
-            key = f"{mese_corrente.year}-{mese_corrente.month:02d}"
-            print("Aggiungo mese:", key)
-            mesi_list.append(key)
-
-        # ORDINA I MESI in ordine cronologico
-        mesi_list = sorted(mesi_list)
-        print("mesi_list ordinata:", mesi_list)
-
-        result = {key: {"entrate": 0.00, "spese": 0.00, "valore": 0.00} for key in mesi_list}
-
-        print("Popolo entrate/spese...")
-
-        for anno, mese, totale_entrate in totali_entrate:
-            key = f"{anno}-{mese:02d}"
-            print("entrate:", key, totale_entrate)
-            if key in result:
-                result[key]["entrate"] = float(totale_entrate or 0)
-                result[key]["valore"] += result[key]["entrate"]
-
-        for anno, mese, totale_spese in totali_spese:
-            key = f"{anno}-{mese:02d}"
-            print("spese:", key, totale_spese)
-            if key in result:
-                result[key]["spese"] = float(totale_spese or 0)
-                result[key]["valore"] -= result[key]["spese"]
-
-        # TRASFORMA DICTIONARY → LIST MANTENENDO ORDINE YYYY-MM
-        result_list = [
-            {
-                "mese": key,
-                "entrate": valori["entrate"],
-                "spese": valori["spese"],
-                "valore": valori["valore"],
-                "currency": user_currency
-            }
-            for key, valori in result.items()
-        ]
-
-        print("result_list finale:", result_list)
-
-        return jsonify(result_list), 200
-
+        cur.execute(SQL_OPENING, params)
+        opening = float(cur.fetchone()[0])
     except Exception as e:
-        print("Error total_balances_by_month:", str(e))
-        return jsonify({"error": "Unable to retrieve balances"}), 500
-
+        logger.error(f"Errore nel calcolo dei bilanci mensili: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"success": False, "message": "Database error"}), 500
     finally:
-        if cursor:
-            cursor.close()
+        if cur:
+            cur.close()
         if conn:
             conn.close()
-        print("=== total_balances_by_month END ===")
+
+    # Ha una connessione propria, quindi va chiamata dopo aver chiuso la nostra
+    currency = get_user_currency(user_id)
+
+    data = []
+    cumulative = opening
+    for month, income, expense in rows:
+        income = float(income)
+        expense = float(expense)
+        balance = income - expense
+        cumulative += balance
+        data.append({
+            "month": month,
+            "income": round(income, 2),
+            "expense": round(expense, 2),
+            "balance": round(balance, 2),
+            "cumulative": round(cumulative, 2),
+        })
+
+    return jsonify({
+        "start": start.strftime('%Y-%m'),
+        "end": _add_months(end, -1).strftime('%Y-%m'),
+        "currency": currency,
+        "opening_balance": round(opening, 2),
+        "data": data,
+    }), 200
